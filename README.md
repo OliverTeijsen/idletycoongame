@@ -79,7 +79,15 @@ npm run eas -- login  # once; interactive
 npm run build:apk     # cloud build, ~10-20 min on the free tier
 ```
 
-Two traps, both already worked around in the scripts:
+**EAS requires a git repository**, and it archives the *committed* tree — an
+uncommitted change is not in the build. Commit before building, or you will be
+testing an APK of code you have already moved past.
+
+Three traps, the last two already worked around in the scripts:
+
+- Without a JDK there is no local `keytool`, so EAS generates the upload
+  keystore in the cloud on the first build. That is fine and needs no input; the
+  keystore then lives on the Expo servers for every later build.
 
 - The package is `eas-cli`, the command is `eas`. **`npx eas login` fails** with
   "could not determine executable to run", because npx looks for a package
