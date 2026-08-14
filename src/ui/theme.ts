@@ -1,17 +1,28 @@
 /**
- * Design tokens. Dark, warm, fry-oil browns with golden accents, a ketchup-red
- * highlight and cream text.
+ * Design tokens.
+ *
+ * The palette is taken from the thing the game is about: a Belgian frituur at
+ * night. Fry-oil browns for the ground, the warm gold of the hatch light for
+ * money, mayo-cream for paper, and — the part that carries the design — a
+ * **sauce colour per business tier**.
+ *
+ * Ten identical rows is what made the old list read as a spreadsheet. Giving
+ * each tier a sauce means a row is recognised by its colour rather than by its
+ * position, and the colours come from the subject instead of from a generic
+ * chart palette.
  */
 import { Platform, TextStyle } from 'react-native';
 
+import type { BusinessId } from '../core/types';
+
 export const colors = {
   /** Deep fry-oil brown — app background. */
-  bg: '#140F0A',
-  surface: '#211A12',
-  surfaceRaised: '#2C2318',
-  border: '#3B2E20',
+  bg: '#12100C',
+  surface: '#1C1811',
+  surfaceRaised: '#262019',
+  border: '#3A3024',
 
-  /** Frietvet gold — the money colour. */
+  /** Frituurvet gold — the money colour, and only ever the money colour. */
   gold: '#F2B33D',
   goldDeep: '#C98A1E',
   goldFaint: '#4A3617',
@@ -20,18 +31,41 @@ export const colors = {
   ketchup: '#E2472F',
   ketchupDeep: '#9E2A18',
 
-  /** Mayo cream — text. */
-  cream: '#F6EBD9',
-  creamDim: '#BCA98D',
-  muted: '#7C6B55',
+  /** Mayo cream — paper, and text. */
+  cream: '#F3E7CE',
+  creamDim: '#B9A88B',
+  muted: '#7A6952',
 
   /** Managed / automated. */
-  green: '#5BB85C',
+  green: '#6DBF63',
   greenDeep: '#2F6B31',
 
-  locked: '#332920',
+  locked: '#2A2219',
   shadow: '#000000',
 } as const;
+
+/**
+ * One sauce per tier, in menu order.
+ *
+ * These are identity, not decoration: the same colour marks a row's edge, its
+ * icon tile, its production bar and its owned count, so a glance down the list
+ * reads as ten different businesses rather than ten copies of one.
+ *
+ * Deliberately excludes anything close to `gold` (money) and `green`
+ * (automated), which already mean something specific everywhere else.
+ */
+export const sauces: Record<BusinessId, string> = {
+  friet: '#EBD9A8', // mayonaise
+  wafel: '#E8B04B', // suikerstroop
+  choco: '#8C5A3C', // chocolade
+  cafe: '#C98F3F', // blond bier
+  brouw: '#7B4A2D', // trappist
+  resto: '#D9B65C', // béarnaise
+  truck: '#D96A3A', // andalouse
+  super: '#A8B54A', // piccalilly
+  concern: '#C0453A', // samurai
+  empire: '#8E6BC4', // — the one tier with no sauce; it left the frituur behind
+};
 
 export const spacing = {
   xs: 4,
@@ -57,7 +91,25 @@ export const tabular: TextStyle = {
   fontVariant: ['tabular-nums'],
 };
 
+/**
+ * No font files ship with the app, so the display face has to come from the
+ * platform. Android's condensed and black system faces are the closest thing to
+ * the chunky lettering on a frituur price board; iOS gets its condensed face,
+ * and web falls back to a system stack.
+ */
 export const fonts = {
+  display: Platform.select({
+    android: 'sans-serif-condensed',
+    ios: 'Avenir Next Condensed',
+    // No exotic faces on web: the narrow Windows display fonts (Haettenschweiler
+    // in particular) squash the cash counter into an unreadable blob.
+    default: '"Arial Narrow", "Roboto Condensed", system-ui, sans-serif',
+  }),
+  displayHeavy: Platform.select({
+    android: 'sans-serif-black',
+    ios: 'Avenir Next Condensed',
+    default: '"Arial Black", system-ui, sans-serif',
+  }),
   mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
 } as const;
 
@@ -65,10 +117,44 @@ export const fonts = {
 export const HIT_SIZE = 44;
 
 export const type = {
-  cash: { fontSize: 34, fontWeight: '800', color: colors.gold, ...tabular } as TextStyle,
-  rate: { fontSize: 14, fontWeight: '600', color: colors.creamDim, ...tabular } as TextStyle,
-  title: { fontSize: 16, fontWeight: '700', color: colors.cream } as TextStyle,
+  /** The hero. Cash is the one number the whole screen is built around. */
+  cash: {
+    fontFamily: fonts.displayHeavy,
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: -1,
+    color: colors.gold,
+    ...tabular,
+  } as TextStyle,
+  rate: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.creamDim,
+    ...tabular,
+  } as TextStyle,
+  title: {
+    fontFamily: fonts.display,
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.cream,
+    letterSpacing: 0.2,
+  } as TextStyle,
   body: { fontSize: 13, fontWeight: '500', color: colors.creamDim } as TextStyle,
   small: { fontSize: 11, fontWeight: '600', color: colors.muted } as TextStyle,
-  button: { fontSize: 14, fontWeight: '800', color: colors.bg } as TextStyle,
+  /** Uppercase micro-label, for things that name a thing rather than say it. */
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  } as TextStyle,
+  button: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.bg,
+    letterSpacing: 0.3,
+  } as TextStyle,
 } as const;

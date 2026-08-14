@@ -65,6 +65,10 @@ export function TopBar(): React.JSX.Element {
           {strings.globalMultiplier(globalMultiplier(state).toFixed(2))}
         </Text>
       ) : null}
+
+      {/* A warm line of hatch light under the counter, brightening while a boost
+          runs. It is the only place the header borrows the frituur directly. */}
+      <View style={[styles.glow, boosted && styles.glowBoosted]} />
     </View>
   );
 }
@@ -90,6 +94,21 @@ const styles = StyleSheet.create({
   },
   investorBonus: {
     color: colors.green,
+  },
+  glow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: colors.goldFaint,
+  },
+  glowBoosted: {
+    backgroundColor: colors.gold,
+    shadowColor: colors.gold,
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
   topRight: {
     flexDirection: 'row',

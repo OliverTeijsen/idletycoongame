@@ -21,7 +21,11 @@ interface Props {
   running: boolean;
   /** Too fast to draw as a filling bar — show a steady stream instead. */
   continuous: boolean;
-  managed: boolean;
+  /**
+   * The tier's sauce colour. The bar carries tier identity rather than the
+   * managed state, which the green AUTO badge and icon ring already say.
+   */
+  colour: string;
 }
 
 /**
@@ -43,7 +47,7 @@ export function CycleBar({
   cycleSeconds,
   running,
   continuous,
-  managed,
+  colour,
 }: Props): React.JSX.Element {
   // Seeded for the first frame too: a continuous tier that started at 0 and
   // only jumped to full in the effect would flash an empty bar on mount.
@@ -80,7 +84,9 @@ export function CycleBar({
       testID={testID}
       style={[
         styles.fill,
-        managed ? styles.managed : styles.tapped,
+        { backgroundColor: colour },
+        // A tier that never pauses earns a brighter edge, so "non-stop" is
+        // visible at a glance and not only in the label.
         continuous && styles.continuous,
         style,
       ]}
@@ -90,7 +96,7 @@ export function CycleBar({
 
 /** Static bar for a tier that cannot run at all, so it never animates. */
 export function IdleBar({ testID }: { testID: string }): React.JSX.Element {
-  return <View testID={testID} style={[styles.fill, styles.tapped, styles.idle]} />;
+  return <View testID={testID} style={[styles.fill, styles.idle]} />;
 }
 
 const styles = StyleSheet.create({
@@ -101,15 +107,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: radius.sm,
   },
-  tapped: {
-    backgroundColor: colors.goldDeep,
-  },
-  managed: {
-    backgroundColor: colors.greenDeep,
-  },
-  // Brighter than the cycling state: at a glance, this tier never stops.
   continuous: {
-    backgroundColor: colors.green,
+    borderRightWidth: 0,
+    opacity: 1,
+    shadowColor: colors.cream,
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
   },
   idle: {
     width: '0%',

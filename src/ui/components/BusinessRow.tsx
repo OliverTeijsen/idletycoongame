@@ -27,7 +27,7 @@ import { useGameStore } from '../../store/gameStore';
 import { useStrings } from '../i18n';
 import { CoinBurst } from '../juice/CoinBurst';
 import { buyFeedback, rewardFeedback, tapFeedback } from '../juice/haptics';
-import { HIT_SIZE, colors, radius, spacing, tabular, type } from '../theme';
+import { HIT_SIZE, colors, fonts, radius, sauces, spacing, tabular, type } from '../theme';
 import { CycleBar, IdleBar } from './CycleBar';
 
 interface Props {
@@ -44,6 +44,7 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
   const def = getDef(id);
   const bs = getBusiness(state, id);
   const name = s.businesses[id];
+  const sauce = sauces[id];
 
   const owned = bs.owned;
   const running = bs.managed || bs.active;
@@ -110,6 +111,13 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
       style={[styles.container, dimmed && styles.dimmed, rowStyle]}
       testID={`row-${id}`}
     >
+      {/* The tier's sauce, running the full height of the row. This edge is what
+          makes ten rows scannable without reading a single word — so it stays
+          coloured on locked tiers too. The row's own opacity does the dimming;
+          swapping the colour out would throw the identity away on the nine rows
+          that need it most. */}
+      <View style={[styles.stripe, { backgroundColor: sauce }]} />
+
       <View style={styles.main}>
         <View style={styles.iconWrap}>
           <Pressable
@@ -121,6 +129,9 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
             onPress={onTap}
             style={({ pressed }) => [
               styles.icon,
+              // `${sauce}22` is the sauce at ~13% — enough to tint the tile
+              // without competing with the glyph sitting on it.
+              { borderColor: sauce, backgroundColor: `${sauce}22` },
               bs.managed && styles.iconManaged,
               bs.active && styles.iconActive,
               pressed && styles.iconPressed,
@@ -139,7 +150,10 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
             <Text style={type.title} numberOfLines={1}>
               {name}
             </Text>
-            <Text style={styles.owned} testID={`owned-${id}`}>
+            <Text
+              style={[styles.owned, { color: owned > 0 ? sauce : colors.muted }]}
+              testID={`owned-${id}`}
+            >
               {owned}
             </Text>
           </View>
@@ -152,7 +166,7 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
                 cycleSeconds={cycleSeconds}
                 running={running}
                 continuous={continuous}
-                managed={bs.managed}
+                colour={sauce}
               />
             ) : (
               <IdleBar testID={`progress-${id}`} />
@@ -228,12 +242,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.sm,
+    // Room on the left for the sauce stripe.
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.sm,
     gap: spacing.sm,
+    overflow: 'hidden',
   },
+  stripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
+  // Never fully faded: a tier you cannot afford yet is the next thing to want,
+  // so it has to stay legible enough to read as a goal.
   dimmed: {
-    opacity: 0.45,
+    opacity: 0.6,
   },
   main: {
     flexDirection: 'row',
@@ -285,10 +312,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  // The owned count is the tier's score. Big, in its own sauce, tabular so it
+  // does not jump width as it climbs.
   owned: {
-    ...type.title,
+    fontFamily: fonts.displayHeavy,
+    fontSize: 22,
+    fontWeight: '900',
     ...tabular,
-    color: colors.gold,
   },
   // The fill itself lives in CycleBar, which animates on the UI thread.
   progressTrack: {
