@@ -1,0 +1,21 @@
+node_modules/
+coverage/
+*.log
+.DS_Store
+
+# Expo / native (from phase 2 onwards)
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Secrets — SDK keys, ad unit ids, store credentials
+.env
+.env.*
+!.env.example

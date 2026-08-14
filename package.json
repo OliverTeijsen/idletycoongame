@@ -1,0 +1,51 @@
+{
+  "name": "frietkot-imperium",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frietkot Imperium — idle tycoon. Phase 2: store, persistence and UI.",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "web": "expo start --web",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "eas": "npx --yes eas-cli@21.8.0",
+    "build:apk": "npx --yes eas-cli@21.8.0 build --profile preview --platform android",
+    "build:dev": "npx --yes eas-cli@21.8.0 build --profile development --platform android",
+    "test": "jest",
+    "test:core": "jest --selectProjects core",
+    "test:app": "jest --selectProjects app",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.9",
+    "break_infinity.js": "^2.0.0",
+    "expo": "^57.0.12",
+    "expo-haptics": "~57.0.1",
+    "expo-localization": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-mmkv": "^4.3.2",
+    "react-native-nitro-modules": "^0.36.5",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.10.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.2.18",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.0",
+    "react-test-renderer": "^19.2.3",
+    "ts-jest": "^29.2.5",
+    "typescript": "~6.0.3"
+  }
+}
