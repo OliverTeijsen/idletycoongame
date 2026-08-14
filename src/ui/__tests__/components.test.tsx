@@ -8,6 +8,7 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { StyleSheet } from 'react-native';
 
 import { getDef } from '../../core/businesses';
 import { getBusiness } from '../../core/economy';
@@ -120,6 +121,59 @@ describe('BusinessRow', () => {
   it('hints at the next milestone', async () => {
     await render(<BusinessRow id="friet" />);
     expect(screen.getByText(/Next ×2 in 24 units/)).toBeTruthy();
+  });
+
+  it('hints at the next speed-up', async () => {
+    await render(<BusinessRow id="friet" />);
+    expect(screen.getByText(/2× faster in 24/)).toBeTruthy();
+  });
+});
+
+describe('BusinessRow — speed and continuous production', () => {
+  function own(owned: number, managed = true): void {
+    set({
+      businesses: state().businesses.map((b) =>
+        b.id === 'friet' ? { ...b, owned, managed } : b,
+      ),
+    });
+  }
+
+  it('shows the shortened cycle time once a speed milestone is passed', async () => {
+    own(1);
+    await render(<BusinessRow id="friet" />);
+    expect(screen.getByText(/1\.5s/)).toBeTruthy();
+
+    // 25 owned halves a 1.5s cycle.
+    own(25);
+    await render(<BusinessRow id="friet" />);
+    expect(screen.getAllByText(/0\.8s|0\.75s/).length).toBeGreaterThan(0);
+  });
+
+  it('replaces the cycle time with "non-stop" once it outruns the tick', async () => {
+    own(400);
+    await render(<BusinessRow id="friet" />);
+    expect(screen.getByText(/non-stop/)).toBeTruthy();
+  });
+
+  it('stops promising a speed-up once the tier already runs non-stop', async () => {
+    own(400);
+    await render(<BusinessRow id="friet" />);
+    expect(screen.queryByText(/faster in/)).toBeNull();
+  });
+
+  // A tier nobody owns must not animate — there is no cycle to draw.
+  it('renders an empty bar for an unowned tier', async () => {
+    await render(<BusinessRow id="empire" />);
+    expect(screen.getByTestId('progress-empire')).toBeTruthy();
+  });
+
+  it('fills the bar completely while production is continuous', async () => {
+    own(400);
+    await render(<BusinessRow id="friet" />);
+
+    const bar = screen.getByTestId('progress-friet');
+    const flat = StyleSheet.flatten(bar.props.style) as { width?: string };
+    expect(flat.width).toBe('100%');
   });
 });
 

@@ -26,6 +26,9 @@ export interface Strings {
   nextMilestone: (units: number) => string;
   allMilestones: string;
   tapToRun: string;
+  /** Shown in place of the cycle time once a tier produces without pausing. */
+  continuous: string;
+  nextSpeed: (units: number) => string;
 
   // TopBar
   globalMultiplier: (value: string) => string;

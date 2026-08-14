@@ -5,10 +5,11 @@ F&B conglomerate.
 
 ## Status: economy, UI, localisation, juice and progression
 
-Done: the pure economy core, the Zustand store with MMKV persistence, the full
-UI, localisation (English + Dutch, system-detected), the juice pass — floating
-`+€X`, coin bursts, an eased cash counter, milestone pops, haptics, the golden
-frietzak — and progression: the daily streak and 15 achievements.
+Done: the pure economy core with profit *and* speed milestones, the Zustand
+store with MMKV persistence, the full UI, localisation (English + Dutch,
+system-detected), the juice pass — floating `+€X`, coin bursts, an eased cash
+counter, milestone pops, haptics, the golden frietzak — and progression: the
+daily streak and 15 achievements.
 
 Not yet built: ads, IAP, GDPR consent and push. All four need a real device
 build and external accounts, so none of them can be verified on web.
@@ -36,13 +37,13 @@ src/
     App.tsx                root: hydrate, tick loop, AppState, modals
     components/            TopBar, BusinessRow, BuyAmountToggle, BottomBar,
                            OfflineModal, PrestigeModal, StreakModal,
-                           AchievementsModal
+                           AchievementsModal, CycleBar
 ```
 
 ## Commands
 
 ```bash
-npm test              # 267 tests across both projects
+npm test              # 294 tests across both projects
 npm run test:core     # pure economy only, ~1s, no React Native
 npm run test:app      # services + store + UI
 npm run test:coverage # with the coverage gate (95/82/95/95)
@@ -270,6 +271,41 @@ A consequence worth remembering when writing new juice: a component that retires
 itself from a timing callback does so during its own mount. Hold those callbacks
 in refs, never in effect dependencies — a changing identity would restart the
 animation the instant it finished.
+
+## Speed milestones and continuous production
+
+`MILESTONES` double a tier's *profit*; `SPEED_MILESTONES` halve its **cycle
+time**. That second curve is what turns a tier from "automatic" into "constant":
+each threshold doubles the rate, and once the cycle drops under the 100ms tick
+the bar stops visibly cycling. A Fry Shack starts at 1.5s and runs non-stop by
+300 owned.
+
+**`cycleTimeFor(def, owned)` is the only place cycle length is decided.**
+`def.cycleTime` is the value at zero speed milestones and must never be read
+directly by the engine, the income maths or the UI — halving it doubles income,
+so a caller using the raw number silently disagrees with the rest of the game
+about what a tier earns. `speed.test.ts` pins that with the invariant that
+matters: `advance()` must pay exactly what `perSecond()` advertises, checked
+across the thresholds. Reverting the engine to `def.cycleTime` fails six of them.
+
+Late tiers stay slow on purpose: the Global F&B Empire's 768s cycle is still 24s
+after every halving, so speed never turns the end game into a sprint.
+
+### The bar
+
+The store ticks ten times a second, which is far too coarse to draw a 1.5s
+cycle — fifteen visible steps read as stutter. `CycleBar` therefore animates the
+fill on the **UI thread** at the true linear rate and re-seeds it from real
+progress on every tick: the animation supplies smoothness, the store supplies
+truth, and they cannot drift by more than one tick.
+
+Past `CONTINUOUS_CYCLE_SECONDS` the cycle is shorter than the tick itself.
+Drawing a filling bar there would be a lie — several cycles complete between
+frames — so it becomes a solid bar and the label reads "non-stop".
+
+With reduce-motion enabled the bar tracks the store directly instead. Coarser,
+but honest: `withTiming` completes on the spot under that setting, which would
+otherwise peg the bar at 100%.
 
 ## Progression
 

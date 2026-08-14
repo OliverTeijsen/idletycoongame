@@ -26,6 +26,7 @@ import {
   buyCost,
   cappedOfflineSeconds,
   cycleRevenueFor,
+  cycleTimeFor,
   getBusiness,
   globalMultiplier,
   perSecond,
@@ -136,7 +137,9 @@ function advanceSlice(state: GameState, dtSeconds: number): AdvanceResult {
     if (bs.owned <= 0) return bs;
     if (!bs.managed && !bs.active) return bs;
 
-    const total = bs.progress + dtSeconds / def.cycleTime;
+    // Effective cycle time, not `def.cycleTime`: speed milestones shorten it,
+    // and the income maths in economy.ts reads the same helper.
+    const total = bs.progress + dtSeconds / cycleTimeFor(def, bs.owned);
 
     if (bs.managed) {
       const cycles = Math.floor(total + CYCLE_EPSILON);

@@ -40,6 +40,8 @@ export const en: Strings = {
   nextMilestone: (units) => `Next ×2 in ${units} ${units === 1 ? 'unit' : 'units'}`,
   allMilestones: 'All milestones reached ×1024',
   tapToRun: 'tap to run',
+  continuous: 'non-stop',
+  nextSpeed: (units) => `2× faster in ${units}`,
 
   globalMultiplier: (value) => `Global multiplier ×${value}`,
 

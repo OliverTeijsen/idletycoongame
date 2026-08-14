@@ -19,6 +19,34 @@ export const COST_MULTIPLIER = 1.1;
 /** Owned counts at which a business doubles its output. */
 export const MILESTONES: readonly number[] = [25, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
 
+/**
+ * Owned counts at which a business **halves its cycle time**.
+ *
+ * This is what turns a tier from "automatic" into "constant": each threshold
+ * doubles the rate, and once the cycle drops under the 100ms tick the bar stops
+ * visibly cycling and reads as a continuous stream. A Fry Shack starts at 1.5s
+ * and is under the tick by 300 owned.
+ *
+ * Every halving also doubles income, exactly like a profit milestone — these
+ * thresholds are deliberately spaced wider than MILESTONES so the two curves do
+ * not compound at the same moments.
+ */
+export const SPEED_MILESTONES: readonly number[] = [25, 100, 200, 300, 400];
+
+/**
+ * Floor on the effective cycle time. `advance()` is analytic and copes with any
+ * value, but a cycle shorter than this buys nothing visually and only invites
+ * floating-point silliness.
+ */
+export const MIN_CYCLE_SECONDS = 0.02;
+
+/**
+ * At or below this effective cycle time the UI stops animating discrete cycles
+ * and shows a continuous bar — anything faster than the tick cannot be drawn
+ * honestly as a filling bar anyway.
+ */
+export const CONTINUOUS_CYCLE_SECONDS = 0.12;
+
 /** Permanent global profit bonus per investor. */
 export const INVESTOR_BONUS = 0.02;
 

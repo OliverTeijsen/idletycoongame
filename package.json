@@ -21,9 +21,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~57.0.9",
+    "@expo/metro-runtime": "~57.0.10",
     "break_infinity.js": "^2.0.0",
-    "expo": "^57.0.12",
+    "expo": "~57.0.13",
     "expo-haptics": "~57.0.1",
     "expo-localization": "~57.0.1",
     "expo-status-bar": "~57.0.1",

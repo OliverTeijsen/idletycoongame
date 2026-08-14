@@ -13,10 +13,13 @@ import {
   canAfford,
   costForAmount,
   cycleRevenue,
+  cycleTimeFor,
   getBusiness,
+  isContinuous,
   milestoneCount,
   resolveBuyCount,
   unitsToNextMilestone,
+  unitsToNextSpeed,
 } from '../../core/economy';
 import { formatTime, money } from '../../core/numbers';
 import type { BusinessId } from '../../core/types';
@@ -25,6 +28,7 @@ import { useStrings } from '../i18n';
 import { CoinBurst } from '../juice/CoinBurst';
 import { buyFeedback, rewardFeedback, tapFeedback } from '../juice/haptics';
 import { HIT_SIZE, colors, radius, spacing, tabular, type } from '../theme';
+import { CycleBar, IdleBar } from './CycleBar';
 
 interface Props {
   id: BusinessId;
@@ -48,6 +52,11 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
   const affordable = canAfford(state, id);
   const canHire = !bs.managed && state.cash.gte(def.managerCost);
   const toNextMilestone = unitsToNextMilestone(owned);
+  const cycleSeconds = cycleTimeFor(def, owned);
+  const continuous = isContinuous(def, owned) && running;
+  // Hidden once the tier already runs without pausing — there is nothing left
+  // to promise, and the row is narrow.
+  const toNextSpeed = continuous ? null : unitsToNextSpeed(owned);
 
   // A tier the player has never bought and cannot afford is dimmed, not hidden —
   // seeing the next tier is what makes the next goal legible.
@@ -136,23 +145,28 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
           </View>
 
           <View style={styles.progressTrack}>
-            <View
-              testID={`progress-${id}`}
-              style={[
-                styles.progressFill,
-                { width: `${Math.min(100, bs.progress * 100)}%` },
-                bs.managed ? styles.progressManaged : styles.progressTapped,
-              ]}
-            />
+            {owned > 0 ? (
+              <CycleBar
+                testID={`progress-${id}`}
+                progress={bs.progress}
+                cycleSeconds={cycleSeconds}
+                running={running}
+                continuous={continuous}
+                managed={bs.managed}
+              />
+            ) : (
+              <IdleBar testID={`progress-${id}`} />
+            )}
             <Text style={styles.progressLabel} numberOfLines={1}>
               {owned > 0 ? money(cycleRevenue(state, id)) : money(def.baseRevenue)}
               {'  ·  '}
-              {formatTime(def.cycleTime)}
+              {continuous ? s.continuous : formatTime(cycleSeconds)}
             </Text>
           </View>
 
-          <Text style={type.small}>
+          <Text style={type.small} numberOfLines={1}>
             {toNextMilestone === null ? s.allMilestones : s.nextMilestone(toNextMilestone)}
+            {toNextSpeed === null ? '' : ` · ${s.nextSpeed(toNextSpeed)}`}
             {running ? '' : owned > 0 ? ` · ${s.tapToRun}` : ''}
           </Text>
         </View>
@@ -276,25 +290,13 @@ const styles = StyleSheet.create({
     ...tabular,
     color: colors.gold,
   },
+  // The fill itself lives in CycleBar, which animates on the UI thread.
   progressTrack: {
     height: 20,
     borderRadius: radius.sm,
     backgroundColor: colors.locked,
     overflow: 'hidden',
     justifyContent: 'center',
-  },
-  // Anchored left and stretched vertically; `width` is what animates.
-  progressFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-  },
-  progressTapped: {
-    backgroundColor: colors.goldDeep,
-  },
-  progressManaged: {
-    backgroundColor: colors.greenDeep,
   },
   progressLabel: {
     ...type.small,

@@ -40,6 +40,8 @@ export const nl: Strings = {
   nextMilestone: (units) => `Volgende ×2 over ${units} ${units === 1 ? 'stuk' : 'stuks'}`,
   allMilestones: 'Alle mijlpalen behaald ×1024',
   tapToRun: 'tik om te draaien',
+  continuous: 'doorlopend',
+  nextSpeed: (units) => `2× sneller over ${units}`,
 
   globalMultiplier: (value) => `Globale multiplier ×${value}`,
 

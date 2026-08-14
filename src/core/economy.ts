@@ -9,12 +9,15 @@
 import { D, Decimal, ONE, ZERO } from './numbers';
 import {
   BUSINESSES,
+  CONTINUOUS_CYCLE_SECONDS,
   COST_MULTIPLIER,
   INVESTOR_BONUS,
   MILESTONES,
+  MIN_CYCLE_SECONDS,
   OFFLINE_CAP_SECONDS,
   PRESTIGE_DIVISOR,
   PRESTIGE_FACTOR,
+  SPEED_MILESTONES,
   getDef,
   getIndex,
 } from './businesses';
@@ -127,6 +130,60 @@ export function unitsToNextMilestone(owned: number): number | null {
 }
 
 // ---------------------------------------------------------------------------
+// Speed
+// ---------------------------------------------------------------------------
+
+/** How many speed thresholds the owned count has passed. */
+export function speedCount(owned: number): number {
+  let count = 0;
+  for (const threshold of SPEED_MILESTONES) {
+    if (owned >= threshold) count += 1;
+    else break;
+  }
+  return count;
+}
+
+/**
+ * Effective seconds per cycle, after speed milestones.
+ *
+ * This is the ONE place cycle length is decided. `def.cycleTime` is the value at
+ * zero speed milestones and must not be read directly by the engine, the income
+ * maths or the UI — halving it doubles income, so a caller using the raw value
+ * silently disagrees with the rest of the game about how much a tier earns.
+ */
+export function cycleTimeFor(def: BusinessDef, owned: number): number {
+  const scaled = def.cycleTime / Math.pow(2, speedCount(owned));
+  return Math.max(MIN_CYCLE_SECONDS, scaled);
+}
+
+/** Effective cycle time for a business in the current state. */
+export function cycleTime(state: GameState, id: BusinessId): number {
+  return cycleTimeFor(getDef(id), getBusiness(state, id).owned);
+}
+
+/** Next owned count that halves the cycle, or null once all are passed. */
+export function nextSpeedMilestone(owned: number): number | null {
+  for (const threshold of SPEED_MILESTONES) {
+    if (owned < threshold) return threshold;
+  }
+  return null;
+}
+
+/** Units still needed for the next speed-up, or null once all are passed. */
+export function unitsToNextSpeed(owned: number): number | null {
+  const next = nextSpeedMilestone(owned);
+  return next === null ? null : next - owned;
+}
+
+/**
+ * True once a tier cycles faster than the UI can honestly draw, at which point
+ * it is rendered as a continuous stream rather than a filling bar.
+ */
+export function isContinuous(def: BusinessDef, owned: number): boolean {
+  return owned > 0 && cycleTimeFor(def, owned) <= CONTINUOUS_CYCLE_SECONDS;
+}
+
+// ---------------------------------------------------------------------------
 // Multipliers
 // ---------------------------------------------------------------------------
 
@@ -169,8 +226,8 @@ export function cycleRevenue(state: GameState, id: BusinessId): Decimal {
 
 /** A single business's income rate, ignoring whether it is automated. */
 export function businessPerSecond(state: GameState, id: BusinessId): Decimal {
-  const def = getDef(id);
-  return cycleRevenue(state, id).div(def.cycleTime);
+  const bs = getBusiness(state, id);
+  return cycleRevenue(state, id).div(cycleTimeFor(getDef(id), bs.owned));
 }
 
 /**
@@ -184,7 +241,7 @@ export function perSecond(state: GameState): Decimal {
     const bs = state.businesses[i];
     const def = BUSINESSES[i];
     if (!bs.managed || bs.owned <= 0) continue;
-    total = total.add(cycleRevenueFor(def, bs.owned, globalMult).div(def.cycleTime));
+    total = total.add(cycleRevenueFor(def, bs.owned, globalMult).div(cycleTimeFor(def, bs.owned)));
   }
   return total;
 }
