@@ -15,6 +15,7 @@ import {
   applyOffline,
   buy,
   buyPerk,
+  buyUpgrade,
   claimStreak,
   createInitialState,
   hireManager,
@@ -129,6 +130,8 @@ export interface GameStore {
   tapBusiness: (id: BusinessId) => void;
   buyBusiness: (id: BusinessId) => void;
   hireManagerFor: (id: BusinessId) => void;
+  /** Buy one cash upgrade for a tier. No-op when unaffordable or unowned. */
+  buyUpgradeFor: (id: BusinessId) => void;
   chooseBuyAmount: (amount: BuyAmount) => void;
 
   startBoost: (durationMs?: number, multiplier?: number) => void;
@@ -234,6 +237,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   tapBusiness: (id) => set({ state: withAchievements(tap(get().state, id)) }),
   buyBusiness: (id) => set({ state: withAchievements(buy(get().state, id)) }),
   hireManagerFor: (id) => set({ state: withAchievements(hireManager(get().state, id)) }),
+  buyUpgradeFor: (id) => set({ state: withAchievements(buyUpgrade(get().state, id)) }),
   chooseBuyAmount: (amount) => set({ state: setBuyAmount(get().state, amount) }),
 
   startBoost: (durationMs = BOOST_DURATION_MS, multiplier = BOOST_MULTIPLIER) =>

@@ -91,6 +91,16 @@ export interface PerkDef {
 /** Levels bought per perk. Missing/zero = not bought. */
 export type PerkLevels = Record<PerkId, number>;
 
+/**
+ * Cash upgrade levels per business tier.
+ *
+ * Unlike perks, these are bought with cash and **reset on prestige** — they are
+ * part of a run, not of the meta. That is what gives cash a destination other
+ * than the next unit: a place to put money at the moment when the next unit is
+ * still out of reach.
+ */
+export type UpgradeLevels = Record<BusinessId, number>;
+
 export type AchievementId =
   | 'tap-100'
   | 'tap-1k'
@@ -108,7 +118,9 @@ export type AchievementId =
   | 'streak-7'
   | 'streak-30'
   | 'perks-1'
-  | 'perks-25';
+  | 'perks-25'
+  | 'upgrades-10'
+  | 'upgrades-50';
 
 /**
  * An achievement is a threshold on a number read from the state. Keeping it to
@@ -141,6 +153,8 @@ export interface GameState {
   investors: number;
   /** Skill-tree levels bought with investors. Survives prestige, like investors. */
   perks: PerkLevels;
+  /** Cash upgrade levels per tier. Wiped by prestige, like cash and businesses. */
+  upgrades: UpgradeLevels;
   /** Aligned by index with BUSINESSES. */
   businesses: BusinessState[];
   buyAmount: BuyAmount;

@@ -11,7 +11,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 
 import { getDef } from '../../core/businesses';
-import { getBusiness } from '../../core/economy';
+import { getBusiness, upgradeCost, upgradeLevel } from '../../core/economy';
 import { createInitialState } from '../../core/engine';
 import { D, money } from '../../core/numbers';
 import { PERKS, getPerk, nextPerkCost, perkLevel } from '../../core/perks';
@@ -98,6 +98,37 @@ describe('BusinessRow', () => {
     await render(<BusinessRow id="friet" />);
     await fireEvent.press(screen.getByTestId('tap-friet'));
     expect(getBusiness(state(), 'friet').active).toBe(true);
+  });
+
+  it('buys a cash upgrade and shows the level on the button', async () => {
+    set({ cash: D(1e6) });
+    await render(<BusinessRow id="friet" />);
+
+    const cost = upgradeCost(state(), 'friet');
+    await fireEvent.press(screen.getByTestId('upgrade-friet'));
+
+    expect(upgradeLevel(state(), 'friet')).toBe(1);
+    expect(state().cash.eq(D(1e6).sub(cost))).toBe(true);
+    // toHaveTextContent matches the full string in RNTL v14: the label carries
+    // the level bought, and the price shown is now the one for the *next* one.
+    expect(screen.getByTestId('upgrade-friet')).toHaveTextContent(
+      `↑ ×2 · 1${money(upgradeCost(state(), 'friet'))}`,
+    );
+  });
+
+  it('does not let an unaffordable upgrade spend money', async () => {
+    set({ cash: D(0) });
+    await render(<BusinessRow id="friet" />);
+    await fireEvent.press(screen.getByTestId('upgrade-friet'));
+    expect(upgradeLevel(state(), 'friet')).toBe(0);
+  });
+
+  it('refuses to upgrade a tier the player does not own yet', async () => {
+    set({ cash: D('1e40') });
+    await render(<BusinessRow id="empire" />);
+    await fireEvent.press(screen.getByTestId('upgrade-empire'));
+    expect(upgradeLevel(state(), 'empire')).toBe(0);
+    expect(state().cash.eq(D('1e40'))).toBe(true);
   });
 
   it('does not let an unaffordable buy button spend money', async () => {

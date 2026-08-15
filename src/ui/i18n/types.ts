@@ -36,6 +36,8 @@ export interface Strings {
   managerHired: string;
   autoBadge: string;
   nextMilestone: (units: number) => string;
+  /** Label on the cash-upgrade button, given the level already bought. */
+  upgrade: (level: number) => string;
   tapToRun: string;
   /** Shown in place of the cycle time once a tier produces without pausing. */
   continuous: string;
@@ -95,4 +97,5 @@ export interface Strings {
   a11ySellEmpire: (investors: number) => string;
   a11yOpenPerks: (available: number) => string;
   a11yBuyPerk: (name: string, cost: number) => string;
+  a11yUpgrade: (name: string, level: number) => string;
 }

@@ -18,6 +18,9 @@ import {
   PRESTIGE_DIVISOR,
   PRESTIGE_FACTOR,
   SPEED_MILESTONES,
+  UPGRADE_COST_FACTOR,
+  UPGRADE_COST_GROWTH,
+  UPGRADE_STEP,
   getDef,
   getIndex,
 } from './businesses';
@@ -236,6 +239,56 @@ export function isContinuous(def: BusinessDef, owned: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Cash upgrades
+//
+// One endless track per tier, bought with cash and wiped by prestige. See the
+// constants in businesses.ts for why the price outgrows the payoff.
+// ---------------------------------------------------------------------------
+
+/** Upgrade level of a tier. Tolerates a save written before upgrades existed. */
+export function upgradeLevel(state: GameState, id: BusinessId): number {
+  const level = state.upgrades?.[id];
+  return typeof level === 'number' && Number.isFinite(level) && level > 0 ? Math.floor(level) : 0;
+}
+
+/**
+ * Profit multiplier a tier gets from its upgrades: 2^level.
+ *
+ * A `Decimal` for the same reason `milestoneMult` is one — the track has no
+ * top, and a float would quietly become Infinity somewhere past level 1024.
+ */
+export function upgradeMult(state: GameState, id: BusinessId): Decimal {
+  return Decimal.pow(UPGRADE_STEP, upgradeLevel(state, id));
+}
+
+/** Price of the upgrade that takes a tier from `level` to `level + 1`. */
+export function upgradeCostFor(def: BusinessDef, level: number): Decimal {
+  return def.baseCost.mul(UPGRADE_COST_FACTOR).mul(Decimal.pow(UPGRADE_COST_GROWTH, level));
+}
+
+/** Price of the next upgrade for a tier in the current state. */
+export function upgradeCost(state: GameState, id: BusinessId): Decimal {
+  return upgradeCostFor(getDef(id), upgradeLevel(state, id));
+}
+
+/**
+ * Can the tier be upgraded right now?
+ *
+ * Gated on owning at least one unit: an upgrade multiplies a tier's output, and
+ * offering to double nothing is a way to take a new player's money for no
+ * effect whatsoever.
+ */
+export function canBuyUpgrade(state: GameState, id: BusinessId): boolean {
+  if (getBusiness(state, id).owned <= 0) return false;
+  return state.cash.gte(upgradeCost(state, id));
+}
+
+/** Upgrade levels bought across every tier — the achievement metric. */
+export function totalUpgradeLevels(state: GameState): number {
+  return BUSINESSES.reduce((sum, def) => sum + upgradeLevel(state, def.id), 0);
+}
+
+// ---------------------------------------------------------------------------
 // Multipliers
 // ---------------------------------------------------------------------------
 
@@ -264,19 +317,25 @@ export function globalMultiplier(state: GameState): number {
 
 /**
  * Revenue of one full cycle:
- *   baseRevenue * owned * milestoneMult(owned) * globalMult
+ *   baseRevenue * owned * milestoneMult(owned) * upgradeMult * globalMult
  *
- * `globalMult` is passed in so a tick can compute it once for all businesses.
+ * `globalMult` is passed in so a tick can compute it once for all businesses;
+ * `upgradeMult` is per tier, so it is passed in per business.
  */
-export function cycleRevenueFor(def: BusinessDef, owned: number, globalMult: number): Decimal {
+export function cycleRevenueFor(
+  def: BusinessDef,
+  owned: number,
+  globalMult: number,
+  upgradeMult: Decimal = ONE,
+): Decimal {
   if (owned <= 0) return ZERO;
-  return def.baseRevenue.mul(owned).mul(milestoneMult(owned)).mul(globalMult);
+  return def.baseRevenue.mul(owned).mul(milestoneMult(owned)).mul(upgradeMult).mul(globalMult);
 }
 
 /** Revenue of one full cycle of a business in the current state. */
 export function cycleRevenue(state: GameState, id: BusinessId): Decimal {
   const bs = getBusiness(state, id);
-  return cycleRevenueFor(getDef(id), bs.owned, globalMultiplier(state));
+  return cycleRevenueFor(getDef(id), bs.owned, globalMultiplier(state), upgradeMult(state, id));
 }
 
 /** A single business's income rate, ignoring whether it is automated. */
@@ -296,7 +355,8 @@ export function perSecond(state: GameState): Decimal {
     const bs = state.businesses[i];
     const def = BUSINESSES[i];
     if (!bs.managed || bs.owned <= 0) continue;
-    total = total.add(cycleRevenueFor(def, bs.owned, globalMult).div(cycleTimeFor(def, bs.owned)));
+    const revenue = cycleRevenueFor(def, bs.owned, globalMult, upgradeMult(state, def.id));
+    total = total.add(revenue.div(cycleTimeFor(def, bs.owned)));
   }
   return total;
 }

@@ -7,6 +7,7 @@
  * PURE MODULE — no React, no React Native, no services.
  */
 import { BUSINESSES } from './businesses';
+import { totalUpgradeLevels } from './economy';
 import { totalPerkLevels } from './perks';
 import type { AchievementDef, AchievementId, GameState } from './types';
 
@@ -56,6 +57,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // the first one fires the moment they spend a single investor.
   { id: 'perks-1', icon: '🌱', goal: 1, progress: totalPerkLevels },
   { id: 'perks-25', icon: '🧠', goal: 25, progress: totalPerkLevels },
+
+  { id: 'upgrades-10', icon: '🔧', goal: 10, progress: totalUpgradeLevels },
+  { id: 'upgrades-50', icon: '🏗️', goal: 50, progress: totalUpgradeLevels },
 ];
 
 const BY_ID = new Map<AchievementId, AchievementDef>(ACHIEVEMENTS.map((a) => [a.id, a]));

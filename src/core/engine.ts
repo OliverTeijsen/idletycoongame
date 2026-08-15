@@ -33,6 +33,9 @@ import {
   prestigeGain,
   resolveBuyCount,
   unitCostMultiplier,
+  upgradeCost,
+  upgradeLevel,
+  upgradeMult,
 } from './economy';
 import {
   availableInvestors,
@@ -54,6 +57,7 @@ import type {
   Payout,
   PerkId,
   StreakResult,
+  UpgradeLevels,
 } from './types';
 
 /**
@@ -77,6 +81,14 @@ function freshBusinesses(): BusinessState[] {
   }));
 }
 
+/** Every tier back to upgrade level 0. Used by a new game and by prestige. */
+export function freshUpgrades(): UpgradeLevels {
+  return BUSINESSES.reduce((acc, def) => {
+    acc[def.id] = 0;
+    return acc;
+  }, {} as UpgradeLevels);
+}
+
 /** A brand-new save: one Fry Shack owned, nothing else. */
 export function createInitialState(now: number = Date.now()): GameState {
   return {
@@ -85,6 +97,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     lifetimeEarnings: ZERO,
     investors: 0,
     perks: freshPerks(),
+    upgrades: freshUpgrades(),
     businesses: freshBusinesses(),
     buyAmount: 1,
     boostRemainingMs: 0,
@@ -154,11 +167,12 @@ function advanceSlice(state: GameState, dtSeconds: number): AdvanceResult {
     // Effective cycle time, not `def.cycleTime`: speed milestones shorten it,
     // and the income maths in economy.ts reads the same helper.
     const total = bs.progress + dtSeconds / cycleTimeFor(def, bs.owned);
+    const tierMult = upgradeMult(state, bs.id);
 
     if (bs.managed) {
       const cycles = Math.floor(total + CYCLE_EPSILON);
       if (cycles > 0) {
-        const amount = cycleRevenueFor(def, bs.owned, globalMult).mul(cycles);
+        const amount = cycleRevenueFor(def, bs.owned, globalMult, tierMult).mul(cycles);
         earned = earned.add(amount);
         payouts.push({ id: bs.id, cycles, amount });
       }
@@ -169,7 +183,7 @@ function advanceSlice(state: GameState, dtSeconds: number): AdvanceResult {
     // then go idle. The bar still runs once — the perk makes a tap worth more,
     // not faster, so the animation stays honest.
     if (total + CYCLE_EPSILON >= 1) {
-      const amount = cycleRevenueFor(def, bs.owned, globalMult).mul(tapCycles);
+      const amount = cycleRevenueFor(def, bs.owned, globalMult, tierMult).mul(tapCycles);
       earned = earned.add(amount);
       payouts.push({ id: bs.id, cycles: tapCycles, amount });
       return { ...bs, progress: 0, active: false };
@@ -255,6 +269,25 @@ export function hireManager(state: GameState, id: BusinessId): GameState {
   return next;
 }
 
+/**
+ * Buy one cash upgrade for a tier: permanent ×2 on that tier for this run.
+ *
+ * No-op when unaffordable, or when the tier is unowned — doubling nothing is
+ * not a purchase, it is a way to lose money.
+ */
+export function buyUpgrade(state: GameState, id: BusinessId): GameState {
+  if (getBusiness(state, id).owned <= 0) return state;
+
+  const cost = upgradeCost(state, id);
+  if (state.cash.lt(cost)) return state;
+
+  return {
+    ...cloneState(state),
+    cash: state.cash.sub(cost),
+    upgrades: { ...state.upgrades, [id]: upgradeLevel(state, id) + 1 },
+  };
+}
+
 /** Switch the ×1/×10/×100/MAX toggle. */
 export function setBuyAmount(state: GameState, amount: BuyAmount): GameState {
   if (state.buyAmount === amount) return state;
@@ -278,6 +311,9 @@ export function prestige(state: GameState): GameState {
     // Perks are deliberately carried over untouched: they are the reason to
     // prestige, so resetting them would make the button pointless.
     perks: { ...state.perks },
+    // Cash upgrades go the other way — they were bought with cash, and cash is
+    // what a sale wipes. Keeping them would make every run start pre-solved.
+    upgrades: freshUpgrades(),
     businesses: freshBusinesses(),
     boostRemainingMs: 0,
     boostMultiplier: BOOST_MULTIPLIER,

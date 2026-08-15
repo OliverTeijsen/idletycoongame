@@ -33,6 +33,8 @@ export const nl: Strings = {
     'streak-30': 'Instituut',
     'perks-1': 'Eerste les',
     'perks-25': 'Schoolgeld betaald',
+    'upgrades-10': 'Verbouwd',
+    'upgrades-50': 'Alles vernieuwd',
   },
 
   perks: {
@@ -70,6 +72,9 @@ export const nl: Strings = {
   managerHired: '✓ Auto',
   autoBadge: 'AUTO',
   nextMilestone: (units) => `Volgende ×2 over ${units} ${units === 1 ? 'stuk' : 'stuks'}`,
+  // Kept to a glyph and a number: on a 360px phone this button is ~64px wide,
+  // and "Upgrade ×2" already overflows it. `a11yUpgrade` carries the meaning.
+  upgrade: (level) => (level === 0 ? '↑ ×2' : `↑ ×2 · ${level}`),
   tapToRun: 'tik om te draaien',
   continuous: 'doorlopend',
   nextSpeed: (units) => `2× sneller over ${units}`,
@@ -120,4 +125,6 @@ export const nl: Strings = {
   a11ySellEmpire: (investors) => `Verkoop je imperium voor ${investors} investeerders`,
   a11yOpenPerks: (available) => `Skilltree, ${available} investeerders vrij te besteden`,
   a11yBuyPerk: (name, cost) => `Koop ${name} voor ${cost} investeerders`,
+  a11yUpgrade: (name, level) =>
+    `Upgrade ${name} naar niveau ${level}, verdubbelt de winst van deze zaak`,
 };

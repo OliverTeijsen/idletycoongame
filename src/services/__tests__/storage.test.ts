@@ -10,6 +10,7 @@
  */
 import { BUSINESSES, SAVE_VERSION } from '../../core/businesses';
 import { advance, buy, createInitialState, hireManager, prestige } from '../../core/engine';
+import { totalUpgradeLevels } from '../../core/economy';
 import { D, decToString } from '../../core/numbers';
 import { availableInvestors, getPerk, totalPerkLevels } from '../../core/perks';
 import type { GameState } from '../../core/types';
@@ -296,6 +297,57 @@ describe('codec — perks', () => {
     for (const perks of ['everything', 42, null, ['profit']]) {
       const json = JSON.stringify({ cash: '0', businesses: [], perks });
       expect(totalPerkLevels(deserializeState(json, 0)!)).toBe(0);
+    }
+  });
+});
+
+describe('codec — cash upgrades', () => {
+  it('round-trips the levels per tier', () => {
+    const base = createInitialState(0);
+    const state: GameState = {
+      ...base,
+      upgrades: { ...base.upgrades, friet: 14, empire: 3 },
+    };
+
+    const back = deserializeState(serializeState(state), 0)!;
+    expect(back.upgrades.friet).toBe(14);
+    expect(back.upgrades.empire).toBe(3);
+    expect(back.upgrades.wafel).toBe(0);
+  });
+
+  it('gives a save written before upgrades existed an empty set', () => {
+    const v3 = JSON.stringify({
+      version: 3,
+      cash: '5000',
+      investors: 12,
+      perks: { profit: 2 },
+      businesses: [{ id: 'friet', owned: 7, progress: 0, managed: true, active: false }],
+      startedAt: 0,
+      lastActiveAt: 0,
+    });
+
+    const s = deserializeState(v3, 1_000)!;
+    expect(s.perks.profit).toBe(2);
+    expect(totalUpgradeLevels(s)).toBe(0);
+    expect(s.version).toBe(SAVE_VERSION);
+  });
+
+  it('floors a negative level and drops unknown tiers', () => {
+    const json = JSON.stringify({
+      cash: '0',
+      businesses: [],
+      upgrades: { friet: 5, wafel: -3, 'not-a-tier': 99 },
+    });
+    const s = deserializeState(json, 0)!;
+    expect(s.upgrades.friet).toBe(5);
+    expect(s.upgrades.wafel).toBe(0);
+    expect((s.upgrades as Record<string, number>)['not-a-tier']).toBeUndefined();
+  });
+
+  it('survives an upgrades field that is not an object at all', () => {
+    for (const upgrades of ['lots', 7, null, ['friet']]) {
+      const json = JSON.stringify({ cash: '0', businesses: [], upgrades });
+      expect(totalUpgradeLevels(deserializeState(json, 0)!)).toBe(0);
     }
   });
 });

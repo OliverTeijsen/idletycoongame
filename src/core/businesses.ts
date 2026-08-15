@@ -67,6 +67,33 @@ export const MIN_CYCLE_SECONDS = 0.02;
  */
 export const CONTINUOUS_CYCLE_SECONDS = 0.12;
 
+// ---------------------------------------------------------------------------
+// Cash upgrades (per tier)
+//
+// The second endless track, and the one that gives cash a job. Milestones are
+// bought with *units*, whose price runs away at 1.1^owned; between two units
+// there is a long stretch where money piles up with nowhere to go. An upgrade
+// is somewhere to put it, and because it is per tier it is also a choice.
+// ---------------------------------------------------------------------------
+
+/** Each upgrade level doubles that one tier's profit. No maximum level. */
+export const UPGRADE_STEP = 2;
+
+/** The first upgrade of a tier costs this many times its base unit price. */
+export const UPGRADE_COST_FACTOR = 30;
+
+/**
+ * Price growth per upgrade level.
+ *
+ * Deliberately *above* `UPGRADE_STEP`: an upgrade track that outgrew its own
+ * price would spiral on its own and flatten every other system. At 2.2 against
+ * a ×2 payoff it slowly loses ground to itself, so the next level becomes
+ * affordable through milestones and perks rather than through the upgrades
+ * already bought — which is what keeps the three systems pulling together
+ * instead of one of them running away with the game.
+ */
+export const UPGRADE_COST_GROWTH = 2.2;
+
 /**
  * Base cap on offline earnings, before the `offline` perk extends it.
  *
@@ -106,7 +133,7 @@ export const STREAK_SECONDS_PER_DAY = 300;
 export const STREAK_MIN_REWARD = 30;
 
 /** Save schema version. Bump when the shape changes and add a migration. */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Business tiers (spec §4)

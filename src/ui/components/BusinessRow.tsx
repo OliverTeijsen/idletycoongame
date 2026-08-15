@@ -11,15 +11,19 @@ import Animated, {
 import { getDef } from '../../core/businesses';
 import {
   canAfford,
+  canBuyUpgrade,
   costForAmount,
   cycleRevenue,
   cycleTimeFor,
   getBusiness,
   isContinuous,
+  managerCost,
   milestoneCount,
   resolveBuyCount,
   unitsToNextMilestone,
   unitsToNextSpeed,
+  upgradeCost,
+  upgradeLevel,
 } from '../../core/economy';
 import { formatTime, money } from '../../core/numbers';
 import type { BusinessId } from '../../core/types';
@@ -39,6 +43,7 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
   const tapBusiness = useGameStore((s) => s.tapBusiness);
   const buyBusiness = useGameStore((s) => s.buyBusiness);
   const hireManagerFor = useGameStore((s) => s.hireManagerFor);
+  const buyUpgradeFor = useGameStore((s) => s.buyUpgradeFor);
 
   const s = useStrings();
   const def = getDef(id);
@@ -51,7 +56,11 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
   const buyCount = resolveBuyCount(state, id);
   const cost = costForAmount(state, id);
   const affordable = canAfford(state, id);
-  const canHire = !bs.managed && state.cash.gte(def.managerCost);
+  const hireCost = managerCost(state, id);
+  const canHire = !bs.managed && state.cash.gte(hireCost);
+  const upLevel = upgradeLevel(state, id);
+  const upCost = upgradeCost(state, id);
+  const canUpgrade = canBuyUpgrade(state, id);
   const toNextMilestone = unitsToNextMilestone(owned);
   const cycleSeconds = cycleTimeFor(def, owned);
   const continuous = isContinuous(def, owned) && running;
@@ -102,6 +111,11 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
     hireManagerFor(id);
     rewardFeedback();
   }, [hireManagerFor, id]);
+
+  const onUpgrade = useCallback(() => {
+    buyUpgradeFor(id);
+    rewardFeedback();
+  }, [buyUpgradeFor, id]);
 
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ scale: rowScale.value }] }));
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: iconScale.value }] }));
@@ -226,10 +240,36 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
             <>
               <Text style={styles.managerLabel}>{s.manager}</Text>
               <Text style={styles.managerCost} numberOfLines={1}>
-                {money(def.managerCost)}
+                {money(hireCost)}
               </Text>
             </>
           )}
+        </Pressable>
+
+        {/* The cash sink, sitting next to the tier it doubles. It lives in the
+            row rather than on a shop screen because "which tier do I put this
+            money into" is the decision, and that only reads as a decision with
+            the tiers in front of you. */}
+        <Pressable
+          testID={`upgrade-${id}`}
+          accessibilityRole="button"
+          accessibilityLabel={s.a11yUpgrade(name, upLevel + 1)}
+          accessibilityState={{ disabled: !canUpgrade }}
+          disabled={!canUpgrade}
+          onPress={onUpgrade}
+          style={({ pressed }) => [
+            styles.upgradeButton,
+            upLevel > 0 && styles.upgradeOwned,
+            !canUpgrade && styles.buttonDisabled,
+            pressed && canUpgrade && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.upgradeLabel} numberOfLines={1}>
+            {s.upgrade(upLevel)}
+          </Text>
+          <Text style={styles.upgradeCost} numberOfLines={1}>
+            {money(upCost)}
+          </Text>
         </Pressable>
       </View>
     </Animated.View>
@@ -382,6 +422,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   managerCost: {
+    ...type.small,
+    ...tabular,
+  },
+  // Deliberately not gold: gold is money, and this button spends it rather than
+  // being it. An owned upgrade takes the tier's own sauce border instead, so a
+  // glance down the list shows where the money already went.
+  upgradeButton: {
+    flex: 1,
+    minHeight: HIT_SIZE,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  upgradeOwned: {
+    borderColor: colors.gold,
+    backgroundColor: colors.goldFaint,
+  },
+  upgradeLabel: {
+    ...type.body,
+    ...tabular,
+    color: colors.cream,
+    fontWeight: '700',
+  },
+  upgradeCost: {
     ...type.small,
     ...tabular,
   },

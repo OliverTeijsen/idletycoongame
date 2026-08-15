@@ -12,8 +12,8 @@
 import { createMMKV } from 'react-native-mmkv';
 
 import { ACHIEVEMENTS } from '../core/achievements';
-import { SAVE_VERSION } from '../core/businesses';
-import { createInitialState } from '../core/engine';
+import { BUSINESSES, SAVE_VERSION } from '../core/businesses';
+import { createInitialState, freshUpgrades } from '../core/engine';
 import { decFromString, decToString } from '../core/numbers';
 import { PERKS, freshPerks } from '../core/perks';
 import type {
@@ -23,6 +23,7 @@ import type {
   BuyAmount,
   GameState,
   PerkLevels,
+  UpgradeLevels,
 } from '../core/types';
 
 export const SAVE_KEY = 'save.v1';
@@ -51,6 +52,7 @@ interface SavedGame {
   lifetimeEarnings: string;
   investors: number;
   perks: Partial<Record<string, number>>;
+  upgrades: Partial<Record<string, number>>;
   businesses: SavedBusiness[];
   buyAmount: BuyAmount;
   boostRemainingMs: number;
@@ -133,6 +135,24 @@ function perksOf(value: unknown): PerkLevels {
   return perks;
 }
 
+/**
+ * Rebuild the cash-upgrade levels from a save.
+ *
+ * Same rules as `perksOf`: unknown tiers dropped, negatives floored at zero.
+ * There is no maximum to clamp to — the track is endless by design — and an
+ * absurd level from a tampered save simply prices the next one out of reach.
+ */
+function upgradesOf(value: unknown): UpgradeLevels {
+  const upgrades = freshUpgrades();
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return upgrades;
+
+  const raw = value as Record<string, unknown>;
+  for (const def of BUSINESSES) {
+    upgrades[def.id] = int(raw[def.id], 0, 0);
+  }
+  return upgrades;
+}
+
 // ---------------------------------------------------------------------------
 // Codec
 // ---------------------------------------------------------------------------
@@ -144,6 +164,7 @@ export function serializeState(state: GameState): string {
     lifetimeEarnings: decToString(state.lifetimeEarnings),
     investors: state.investors,
     perks: { ...state.perks },
+    upgrades: { ...state.upgrades },
     businesses: state.businesses.map((bs) => ({
       id: bs.id,
       owned: bs.owned,
@@ -213,6 +234,7 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     lifetimeEarnings: decFromString(saved.lifetimeEarnings ?? '0'),
     investors: int(saved.investors, 0),
     perks: perksOf(saved.perks),
+    upgrades: upgradesOf(saved.upgrades),
     businesses,
     buyAmount: buyAmountOf(saved.buyAmount),
     boostRemainingMs: num(saved.boostRemainingMs, 0, 0),
