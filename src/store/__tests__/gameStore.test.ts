@@ -9,6 +9,7 @@ import { getDef } from '../../core/businesses';
 import { getBusiness, perSecond } from '../../core/economy';
 import { createInitialState } from '../../core/engine';
 import { D } from '../../core/numbers';
+import { availableInvestors, nextPerkCost, perkLevel } from '../../core/perks';
 import type { GameState, Payout } from '../../core/types';
 import { clearSave, loadGame, saveGame } from '../../services/storage';
 import { AUTOSAVE_SECONDS, MAX_TICK_SECONDS, subscribeToPayouts, useGameStore } from '../gameStore';
@@ -30,6 +31,7 @@ beforeEach(() => {
     hydrated: false,
     offline: null,
     prestigePending: false,
+    perksOpen: false,
   });
 });
 
@@ -256,6 +258,48 @@ describe('actions delegate to the core', () => {
     expect(state().cash.eq(D(0))).toBe(true);
     expect(useGameStore.getState().prestigePending).toBe(false);
     expect(loadGame(0)!.investors).toBe(150);
+  });
+
+  it('hands the player the skill tree the moment a sale goes through', () => {
+    set({ cash: D(1e6), lifetimeEarnings: D(1e9) });
+    useGameStore.getState().openPrestige();
+    useGameStore.getState().confirmPrestige();
+
+    // The reward for prestiging is a screenful of things to buy, so it opens
+    // itself rather than waiting to be found.
+    expect(useGameStore.getState().perksOpen).toBe(true);
+  });
+
+  it('does not open the skill tree when the prestige was a no-op', () => {
+    useGameStore.getState().openPrestige();
+    useGameStore.getState().confirmPrestige();
+    expect(useGameStore.getState().perksOpen).toBe(false);
+  });
+
+  it('buys perk levels, spending investors and saving at once', () => {
+    set({ investors: 40 });
+    const cost = nextPerkCost(state(), 'profit')!;
+
+    useGameStore.getState().buyPerkLevel('profit');
+
+    expect(perkLevel(state(), 'profit')).toBe(1);
+    expect(availableInvestors(state())).toBe(40 - cost);
+    // Persisted immediately: a prestige currency is the worst thing to lose.
+    expect(loadGame(0)!.perks.profit).toBe(1);
+  });
+
+  it('refuses a perk the player cannot afford, without touching the state', () => {
+    set({ investors: 0 });
+    const before = state();
+    useGameStore.getState().buyPerkLevel('profit');
+    expect(state()).toBe(before);
+  });
+
+  it('opens and closes the skill tree', () => {
+    useGameStore.getState().openPerks();
+    expect(useGameStore.getState().perksOpen).toBe(true);
+    useGameStore.getState().closePerks();
+    expect(useGameStore.getState().perksOpen).toBe(false);
   });
 
   it('resets the game', () => {

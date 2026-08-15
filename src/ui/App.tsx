@@ -14,6 +14,7 @@ import { BusinessRow } from './components/BusinessRow';
 import { BuyAmountToggle } from './components/BuyAmountToggle';
 import { AchievementsModal } from './components/AchievementsModal';
 import { OfflineModal } from './components/OfflineModal';
+import { PerksModal } from './components/PerksModal';
 import { PrestigeModal } from './components/PrestigeModal';
 import { StreakModal } from './components/StreakModal';
 import { TopBar } from './components/TopBar';
@@ -92,6 +93,9 @@ export default function App(): React.JSX.Element {
             <OfflineModal />
             <StreakModal />
             <PrestigeModal />
+            {/* After PrestigeModal: confirming a sale opens this one, and the
+                skill tree is what the player is meant to be looking at next. */}
+            <PerksModal />
             <AchievementsModal />
           </>
         ) : (

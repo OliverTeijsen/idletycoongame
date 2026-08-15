@@ -11,6 +11,7 @@
 import { BUSINESSES, SAVE_VERSION } from '../../core/businesses';
 import { advance, buy, createInitialState, hireManager, prestige } from '../../core/engine';
 import { D, decToString } from '../../core/numbers';
+import { availableInvestors, getPerk, totalPerkLevels } from '../../core/perks';
 import type { GameState } from '../../core/types';
 import {
   clearSave,
@@ -227,6 +228,75 @@ describe('codec — streak and achievements', () => {
   it('clamps a negative streak', () => {
     const json = JSON.stringify({ cash: '0', businesses: [], streakDays: -5 });
     expect(deserializeState(json, 0)!.streakDays).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('codec — perks', () => {
+  it('round-trips the whole tree', () => {
+    const base = createInitialState(0);
+    const state: GameState = {
+      ...base,
+      investors: 500,
+      perks: { ...base.perks, profit: 12, tap: 3, offline: 2 },
+    };
+
+    const back = deserializeState(serializeState(state), 0)!;
+    expect(back.investors).toBe(500);
+    expect(back.perks.profit).toBe(12);
+    expect(back.perks.tap).toBe(3);
+    expect(back.perks.offline).toBe(2);
+    expect(back.perks.golden).toBe(0);
+  });
+
+  // The v2 → v3 migration in full: a save written before the skill tree existed
+  // keeps every investor it earned and arrives with all of them unspent.
+  it('gives a pre-skill-tree save an empty tree and its investors back', () => {
+    const v2 = JSON.stringify({
+      version: 2,
+      cash: '5000',
+      lifetimeEarnings: '9e11',
+      investors: 470,
+      businesses: [{ id: 'friet', owned: 7, progress: 0, managed: true, active: false }],
+      streakDays: 4,
+      unlocked: ['tap-100'],
+      startedAt: 0,
+      lastActiveAt: 0,
+    });
+
+    const s = deserializeState(v2, 1_000)!;
+    expect(s.investors).toBe(470);
+    expect(totalPerkLevels(s)).toBe(0);
+    expect(availableInvestors(s)).toBe(470);
+    expect(s.version).toBe(SAVE_VERSION);
+  });
+
+  it('clamps a capped perk to its maximum, whatever the save claims', () => {
+    const json = JSON.stringify({
+      cash: '0',
+      businesses: [],
+      perks: { tap: 999_999, cost: -40 },
+    });
+    const s = deserializeState(json, 0)!;
+    expect(s.perks.tap).toBe(getPerk('tap').maxLevel);
+    expect(s.perks.cost).toBe(0);
+  });
+
+  it('ignores perk ids this build does not define', () => {
+    const json = JSON.stringify({
+      cash: '0',
+      businesses: [],
+      perks: { profit: 4, 'from-the-future': 900 },
+    });
+    const s = deserializeState(json, 0)!;
+    expect(s.perks.profit).toBe(4);
+    expect((s.perks as Record<string, number>)['from-the-future']).toBeUndefined();
+  });
+
+  it('survives a perks field that is not an object at all', () => {
+    for (const perks of ['everything', 42, null, ['profit']]) {
+      const json = JSON.stringify({ cash: '0', businesses: [], perks });
+      expect(totalPerkLevels(deserializeState(json, 0)!)).toBe(0);
+    }
   });
 });
 

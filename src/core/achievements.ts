@@ -7,6 +7,7 @@
  * PURE MODULE — no React, no React Native, no services.
  */
 import { BUSINESSES } from './businesses';
+import { totalPerkLevels } from './perks';
 import type { AchievementDef, AchievementId, GameState } from './types';
 
 /** Total units owned across every tier. */
@@ -50,6 +51,11 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'streak-3', icon: '📅', goal: 3, progress: (s) => s.streakDays },
   { id: 'streak-7', icon: '🔥', goal: 7, progress: (s) => s.streakDays },
   { id: 'streak-30', icon: '🏆', goal: 30, progress: (s) => s.streakDays },
+
+  // The skill tree is the thing a returning player is most likely to miss, so
+  // the first one fires the moment they spend a single investor.
+  { id: 'perks-1', icon: '🌱', goal: 1, progress: totalPerkLevels },
+  { id: 'perks-25', icon: '🧠', goal: 25, progress: totalPerkLevels },
 ];
 
 const BY_ID = new Map<AchievementId, AchievementDef>(ACHIEVEMENTS.map((a) => [a.id, a]));

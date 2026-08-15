@@ -15,12 +15,14 @@ import { ACHIEVEMENTS } from '../core/achievements';
 import { SAVE_VERSION } from '../core/businesses';
 import { createInitialState } from '../core/engine';
 import { decFromString, decToString } from '../core/numbers';
+import { PERKS, freshPerks } from '../core/perks';
 import type {
   AchievementId,
   BusinessId,
   BusinessState,
   BuyAmount,
   GameState,
+  PerkLevels,
 } from '../core/types';
 
 export const SAVE_KEY = 'save.v1';
@@ -48,6 +50,7 @@ interface SavedGame {
   cash: string;
   lifetimeEarnings: string;
   investors: number;
+  perks: Partial<Record<string, number>>;
   businesses: SavedBusiness[];
   buyAmount: BuyAmount;
   boostRemainingMs: number;
@@ -105,6 +108,31 @@ function achievementsOf(value: unknown): AchievementId[] {
   return out;
 }
 
+/**
+ * Rebuild the perk tree from a save.
+ *
+ * Unknown ids are dropped and every level is clamped to the perk's own maximum,
+ * for the same reason achievements are filtered: a save can name a perk a later
+ * build renamed, and a tampered one can claim level 9e9 of a capped node. The
+ * endless perks have no maximum to clamp to, so they are only floored at zero —
+ * an absurd level there costs nothing but an absurd price for the next one.
+ *
+ * A v1/v2 save has no `perks` field at all and lands on a fresh, empty tree,
+ * which is the whole migration: those players keep every investor they earned
+ * and get to spend the lot.
+ */
+function perksOf(value: unknown): PerkLevels {
+  const perks = freshPerks();
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return perks;
+
+  const raw = value as Record<string, unknown>;
+  for (const def of PERKS) {
+    const level = int(raw[def.id], 0, 0);
+    perks[def.id] = def.maxLevel === null ? level : Math.min(level, def.maxLevel);
+  }
+  return perks;
+}
+
 // ---------------------------------------------------------------------------
 // Codec
 // ---------------------------------------------------------------------------
@@ -115,6 +143,7 @@ export function serializeState(state: GameState): string {
     cash: decToString(state.cash),
     lifetimeEarnings: decToString(state.lifetimeEarnings),
     investors: state.investors,
+    perks: { ...state.perks },
     businesses: state.businesses.map((bs) => ({
       id: bs.id,
       owned: bs.owned,
@@ -183,6 +212,7 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     cash: decFromString(saved.cash),
     lifetimeEarnings: decFromString(saved.lifetimeEarnings ?? '0'),
     investors: int(saved.investors, 0),
+    perks: perksOf(saved.perks),
     businesses,
     buyAmount: buyAmountOf(saved.buyAmount),
     boostRemainingMs: num(saved.boostRemainingMs, 0, 0),

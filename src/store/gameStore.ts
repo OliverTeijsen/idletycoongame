@@ -14,6 +14,7 @@ import {
   advance,
   applyOffline,
   buy,
+  buyPerk,
   claimStreak,
   createInitialState,
   hireManager,
@@ -31,6 +32,7 @@ import type {
   GameState,
   OfflineResult,
   Payout,
+  PerkId,
   StreakResult,
 } from '../core/types';
 import { loadGame, saveGame } from '../services/storage';
@@ -118,6 +120,8 @@ export interface GameStore {
   prestigePending: boolean;
   /** Set while the achievements list is open. */
   achievementsOpen: boolean;
+  /** Set while the investor skill tree is open. */
+  perksOpen: boolean;
 
   hydrate: (now?: number) => void;
   tick: (dtSeconds: number) => void;
@@ -137,6 +141,11 @@ export interface GameStore {
 
   openAchievements: () => void;
   closeAchievements: () => void;
+
+  openPerks: () => void;
+  closePerks: () => void;
+  /** Spend investors on one level of a perk. No-op when unaffordable or maxed. */
+  buyPerkLevel: (id: PerkId) => void;
 
   claimOffline: (multiplier?: number, now?: number) => void;
   /** Dismiss the streak modal. The reward was already banked when it opened. */
@@ -168,6 +177,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   streak: null,
   prestigePending: false,
   achievementsOpen: false,
+  perksOpen: false,
 
   hydrate: (now = Date.now()) => {
     const loaded = loadGame(now);
@@ -234,14 +244,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
   openPrestige: () => set({ prestigePending: true }),
   closePrestige: () => set({ prestigePending: false }),
   confirmPrestige: () => {
-    const next = withAchievements(prestige(get().state));
+    const before = get().state;
+    const next = withAchievements(prestige(before));
     saveGame(next);
     sinceSave = 0;
-    set({ state: next, prestigePending: false });
+    // Land straight in the skill tree with the investors just earned. Prestige
+    // felt empty precisely because its reward was a number that changed
+    // somewhere off-screen; handing the player the spend screen is the moment
+    // the loop pays off, so it should not have to be gone looking for.
+    set({ state: next, prestigePending: false, perksOpen: next !== before });
   },
 
   openAchievements: () => set({ achievementsOpen: true }),
   closeAchievements: () => set({ achievementsOpen: false }),
+
+  openPerks: () => set({ perksOpen: true }),
+  closePerks: () => set({ perksOpen: false }),
+  // Saved immediately rather than on the next autosave tick: spending a
+  // prestige currency is the one purchase a player would be furious to lose.
+  buyPerkLevel: (id) => {
+    const next = withAchievements(buyPerk(get().state, id));
+    if (next === get().state) return;
+    saveGame(next);
+    sinceSave = 0;
+    set({ state: next });
+  },
 
   claimOffline: (multiplier = 1, now = Date.now()) => {
     const { offline, state } = get();
@@ -294,6 +321,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       streak: null,
       prestigePending: false,
       achievementsOpen: false,
+      perksOpen: false,
       hydrated: true,
     });
   },

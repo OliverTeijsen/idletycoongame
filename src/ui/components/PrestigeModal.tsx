@@ -1,9 +1,8 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { INVESTOR_BONUS } from '../../core/businesses';
 import { prestigeGain } from '../../core/economy';
-import { formatPercent } from '../../core/numbers';
+import { availableInvestors } from '../../core/perks';
 import { useGameStore } from '../../store/gameStore';
 import { useStrings } from '../i18n';
 import { prestigeFeedback } from '../juice/haptics';
@@ -25,7 +24,9 @@ export function PrestigeModal(): React.JSX.Element | null {
   if (!visible) return null;
 
   const gain = prestigeGain(state);
-  const total = state.investors + gain;
+  // What the player will have to *spend* afterwards, not what they will own:
+  // investors sitting unspent are worth nothing, and the summary should say so.
+  const toSpend = availableInvestors(state) + gain;
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={closePrestige}>
@@ -37,9 +38,7 @@ export function PrestigeModal(): React.JSX.Element | null {
           <Text style={styles.gain} testID="prestige-gain">
             +{gain} 💼
           </Text>
-          <Text style={styles.body}>
-            {strings.prestigeSummary(total, formatPercent(total * INVESTOR_BONUS))}
-          </Text>
+          <Text style={styles.body}>{strings.prestigeSummary(toSpend)}</Text>
 
           <Pressable
             testID="prestige-confirm"

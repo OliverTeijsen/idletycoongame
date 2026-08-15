@@ -179,7 +179,7 @@ export function BusinessRow({ id }: Props): React.JSX.Element {
           </View>
 
           <Text style={type.small} numberOfLines={1}>
-            {toNextMilestone === null ? s.allMilestones : s.nextMilestone(toNextMilestone)}
+            {s.nextMilestone(toNextMilestone)}
             {toNextSpeed === null ? '' : ` · ${s.nextSpeed(toNextSpeed)}`}
             {running ? '' : owned > 0 ? ` · ${s.tapToRun}` : ''}
           </Text>

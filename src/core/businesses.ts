@@ -16,8 +16,28 @@ import type { BusinessDef, BusinessId } from './types';
 /** Each owned unit makes the next one 10% more expensive. */
 export const COST_MULTIPLIER = 1.1;
 
-/** Owned counts at which a business doubles its output. */
+/**
+ * Owned counts at which a business doubles its output.
+ *
+ * These are the hand-paced early ones. They do NOT stop at 1000 — see
+ * `MILESTONE_STEP`, which continues the ladder forever.
+ */
 export const MILESTONES: readonly number[] = [25, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
+
+/**
+ * Spacing of every milestone past the last listed one — forever.
+ *
+ * This is the single change that makes the game endless. With a finite ladder a
+ * tier stops improving at 1000 owned: output then grows linearly with `owned`
+ * while the next unit costs 1.1^owned, so progression hits a wall it can never
+ * climb again and the whole game is over in a day. An unbounded ladder means
+ * every tier always has a next ×2, and the run can keep going as long as the
+ * player wants it to.
+ *
+ * `milestoneMult` returns a `Decimal` precisely because this has no top: 2^n
+ * leaves the range of a JS number at n = 1024, which an endless ladder reaches.
+ */
+export const MILESTONE_STEP = 500;
 
 /**
  * Owned counts at which a business **halves its cycle time**.
@@ -47,10 +67,14 @@ export const MIN_CYCLE_SECONDS = 0.02;
  */
 export const CONTINUOUS_CYCLE_SECONDS = 0.12;
 
-/** Permanent global profit bonus per investor. */
-export const INVESTOR_BONUS = 0.02;
-
-/** Offline earnings are capped at 12 hours. */
+/**
+ * Base cap on offline earnings, before the `offline` perk extends it.
+ *
+ * Investors used to grant a flat +2% each. That is gone: it was a number that
+ * went up on its own, which is exactly why prestige felt like it did nothing.
+ * Every point of permanent power is now bought in the skill tree — see
+ * `perks.ts`.
+ */
 export const OFFLINE_CAP_SECONDS = 12 * 3600;
 
 /** Rewarded-ad profit boost. */
@@ -82,7 +106,7 @@ export const STREAK_SECONDS_PER_DAY = 300;
 export const STREAK_MIN_REWARD = 30;
 
 /** Save schema version. Bump when the shape changes and add a migration. */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Business tiers (spec §4)

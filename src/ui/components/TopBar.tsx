@@ -2,9 +2,9 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACHIEVEMENTS } from '../../core/achievements';
-import { INVESTOR_BONUS } from '../../core/businesses';
 import { globalMultiplier, isBoostActive, perSecond } from '../../core/economy';
-import { formatPercent, money, moneyPerSecond } from '../../core/numbers';
+import { money, moneyPerSecond } from '../../core/numbers';
+import { availableInvestors } from '../../core/perks';
 import { useGameStore } from '../../store/gameStore';
 import { useStrings } from '../i18n';
 import { useEasedDecimal } from '../juice/useEasedDecimal';
@@ -13,9 +13,11 @@ import { HIT_SIZE, colors, radius, spacing, tabular, type } from '../theme';
 export function TopBar(): React.JSX.Element {
   const state = useGameStore((s) => s.state);
   const openAchievements = useGameStore((s) => s.openAchievements);
+  const openPerks = useGameStore((s) => s.openPerks);
   const strings = useStrings();
   const boosted = isBoostActive(state);
   const earned = state.unlocked.length;
+  const available = availableInvestors(state);
 
   // The counter eases toward the real balance, so a big payout rolls up instead
   // of teleporting. The *real* cash is what every affordability check uses —
@@ -52,15 +54,31 @@ export function TopBar(): React.JSX.Element {
 
       <View style={styles.row}>
         <Text style={type.rate}>{moneyPerSecond(perSecond(state))}</Text>
-        <Text style={styles.investors}>
-          💼 {state.investors}{' '}
-          <Text style={styles.investorBonus}>
-            {formatPercent(state.investors * INVESTOR_BONUS)}
-          </Text>
-        </Text>
+
+        {/* The investor chip is the door to the skill tree, and it nags in the
+            money colour while anything is unspent. An idle player who never
+            finds this screen is a player for whom prestige still does nothing. */}
+        <Pressable
+          testID="open-perks"
+          accessibilityRole="button"
+          accessibilityLabel={strings.a11yOpenPerks(available)}
+          onPress={openPerks}
+          style={({ pressed }) => [
+            styles.investorChip,
+            available > 0 && styles.investorChipReady,
+            pressed && styles.trophyPressed,
+          ]}
+        >
+          <Text style={styles.investors}>💼 {state.investors}</Text>
+          {available > 0 ? (
+            <Text style={styles.investorFree} testID="investors-free">
+              +{available}
+            </Text>
+          ) : null}
+        </Pressable>
       </View>
 
-      {state.investors > 0 ? (
+      {globalMultiplier(state) > 1 ? (
         <Text style={type.small}>
           {strings.globalMultiplier(globalMultiplier(state).toFixed(2))}
         </Text>
@@ -88,12 +106,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  investorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minHeight: HIT_SIZE,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  investorChipReady: {
+    backgroundColor: colors.goldFaint,
+    borderColor: colors.goldDeep,
+  },
   investors: {
     ...type.rate,
+    ...tabular,
     color: colors.cream,
   },
-  investorBonus: {
-    color: colors.green,
+  investorFree: {
+    ...type.rate,
+    ...tabular,
+    color: colors.gold,
+    fontWeight: '800',
   },
   glow: {
     position: 'absolute',

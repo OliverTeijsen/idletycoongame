@@ -8,6 +8,7 @@
 export * from './numbers';
 export * from './types';
 export * from './businesses';
+export * from './perks';
 export * from './economy';
 export * from './achievements';
 export * from './streak';
