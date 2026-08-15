@@ -16,8 +16,28 @@ import type { BusinessDef, BusinessId } from './types';
 /** Each owned unit makes the next one 10% more expensive. */
 export const COST_MULTIPLIER = 1.1;
 
-/** Owned counts at which a business doubles its output. */
+/**
+ * Owned counts at which a business doubles its output.
+ *
+ * These are the hand-paced early ones. They do NOT stop at 1000 — see
+ * `MILESTONE_STEP`, which continues the ladder forever.
+ */
 export const MILESTONES: readonly number[] = [25, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
+
+/**
+ * Spacing of every milestone past the last listed one — forever.
+ *
+ * This is the single change that makes the game endless. With a finite ladder a
+ * tier stops improving at 1000 owned: output then grows linearly with `owned`
+ * while the next unit costs 1.1^owned, so progression hits a wall it can never
+ * climb again and the whole game is over in a day. An unbounded ladder means
+ * every tier always has a next ×2, and the run can keep going as long as the
+ * player wants it to.
+ *
+ * `milestoneMult` returns a `Decimal` precisely because this has no top: 2^n
+ * leaves the range of a JS number at n = 1024, which an endless ladder reaches.
+ */
+export const MILESTONE_STEP = 500;
 
 /**
  * Owned counts at which a business **halves its cycle time**.
@@ -47,10 +67,41 @@ export const MIN_CYCLE_SECONDS = 0.02;
  */
 export const CONTINUOUS_CYCLE_SECONDS = 0.12;
 
-/** Permanent global profit bonus per investor. */
-export const INVESTOR_BONUS = 0.02;
+// ---------------------------------------------------------------------------
+// Cash upgrades (per tier)
+//
+// The second endless track, and the one that gives cash a job. Milestones are
+// bought with *units*, whose price runs away at 1.1^owned; between two units
+// there is a long stretch where money piles up with nowhere to go. An upgrade
+// is somewhere to put it, and because it is per tier it is also a choice.
+// ---------------------------------------------------------------------------
 
-/** Offline earnings are capped at 12 hours. */
+/** Each upgrade level doubles that one tier's profit. No maximum level. */
+export const UPGRADE_STEP = 2;
+
+/** The first upgrade of a tier costs this many times its base unit price. */
+export const UPGRADE_COST_FACTOR = 30;
+
+/**
+ * Price growth per upgrade level.
+ *
+ * Deliberately *above* `UPGRADE_STEP`: an upgrade track that outgrew its own
+ * price would spiral on its own and flatten every other system. At 2.2 against
+ * a ×2 payoff it slowly loses ground to itself, so the next level becomes
+ * affordable through milestones and perks rather than through the upgrades
+ * already bought — which is what keeps the three systems pulling together
+ * instead of one of them running away with the game.
+ */
+export const UPGRADE_COST_GROWTH = 2.2;
+
+/**
+ * Base cap on offline earnings, before the `offline` perk extends it.
+ *
+ * Investors used to grant a flat +2% each. That is gone: it was a number that
+ * went up on its own, which is exactly why prestige felt like it did nothing.
+ * Every point of permanent power is now bought in the skill tree — see
+ * `perks.ts`.
+ */
 export const OFFLINE_CAP_SECONDS = 12 * 3600;
 
 /** Rewarded-ad profit boost. */
@@ -82,7 +133,7 @@ export const STREAK_SECONDS_PER_DAY = 300;
 export const STREAK_MIN_REWARD = 30;
 
 /** Save schema version. Bump when the shape changes and add a migration. */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Business tiers (spec §4)

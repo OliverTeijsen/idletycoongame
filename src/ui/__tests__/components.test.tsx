@@ -11,9 +11,10 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 
 import { getDef } from '../../core/businesses';
-import { getBusiness } from '../../core/economy';
+import { getBusiness, upgradeCost, upgradeLevel } from '../../core/economy';
 import { createInitialState } from '../../core/engine';
 import { D, money } from '../../core/numbers';
+import { PERKS, getPerk, nextPerkCost, perkLevel } from '../../core/perks';
 import type { GameState } from '../../core/types';
 import { clearSave } from '../../services/storage';
 import { useGameStore } from '../../store/gameStore';
@@ -21,6 +22,7 @@ import { BottomBar } from '../components/BottomBar';
 import { BusinessRow } from '../components/BusinessRow';
 import { BuyAmountToggle } from '../components/BuyAmountToggle';
 import { OfflineModal } from '../components/OfflineModal';
+import { PerksModal } from '../components/PerksModal';
 import { PrestigeModal } from '../components/PrestigeModal';
 import { TopBar } from '../components/TopBar';
 
@@ -39,6 +41,7 @@ beforeEach(() => {
     hydrated: true,
     offline: null,
     prestigePending: false,
+    perksOpen: false,
   });
 });
 
@@ -51,11 +54,25 @@ describe('TopBar', () => {
     expect(screen.getByText('€0/s')).toBeTruthy();
   });
 
-  it('shows the investor count and permanent bonus', async () => {
+  it('shows the investor count and flags what is unspent', async () => {
     set({ investors: 25 });
     await render(<TopBar />);
-    expect(screen.getByText(/25/)).toBeTruthy();
-    expect(screen.getByText('+50%')).toBeTruthy();
+    expect(screen.getByText('💼 25')).toBeTruthy();
+    // Nothing bought yet, so all 25 are begging to be spent.
+    expect(screen.getByTestId('investors-free')).toHaveTextContent('+25');
+  });
+
+  it('drops the unspent flag once the investors are committed', async () => {
+    const base = state();
+    set({ investors: 25, perks: { ...base.perks, cost: 6 } });
+    await render(<TopBar />);
+    expect(screen.queryByTestId('investors-free')).toBeNull();
+  });
+
+  it('opens the skill tree from the investor chip', async () => {
+    await render(<TopBar />);
+    await fireEvent.press(screen.getByTestId('open-perks'));
+    expect(useGameStore.getState().perksOpen).toBe(true);
   });
 
   it('hides the boost badge when no boost is running', async () => {
@@ -81,6 +98,37 @@ describe('BusinessRow', () => {
     await render(<BusinessRow id="friet" />);
     await fireEvent.press(screen.getByTestId('tap-friet'));
     expect(getBusiness(state(), 'friet').active).toBe(true);
+  });
+
+  it('buys a cash upgrade and shows the level on the button', async () => {
+    set({ cash: D(1e6) });
+    await render(<BusinessRow id="friet" />);
+
+    const cost = upgradeCost(state(), 'friet');
+    await fireEvent.press(screen.getByTestId('upgrade-friet'));
+
+    expect(upgradeLevel(state(), 'friet')).toBe(1);
+    expect(state().cash.eq(D(1e6).sub(cost))).toBe(true);
+    // toHaveTextContent matches the full string in RNTL v14: the label carries
+    // the level bought, and the price shown is now the one for the *next* one.
+    expect(screen.getByTestId('upgrade-friet')).toHaveTextContent(
+      `↑ ×2 · 1${money(upgradeCost(state(), 'friet'))}`,
+    );
+  });
+
+  it('does not let an unaffordable upgrade spend money', async () => {
+    set({ cash: D(0) });
+    await render(<BusinessRow id="friet" />);
+    await fireEvent.press(screen.getByTestId('upgrade-friet'));
+    expect(upgradeLevel(state(), 'friet')).toBe(0);
+  });
+
+  it('refuses to upgrade a tier the player does not own yet', async () => {
+    set({ cash: D('1e40') });
+    await render(<BusinessRow id="empire" />);
+    await fireEvent.press(screen.getByTestId('upgrade-empire'));
+    expect(upgradeLevel(state(), 'empire')).toBe(0);
+    expect(state().cash.eq(D('1e40'))).toBe(true);
   });
 
   it('does not let an unaffordable buy button spend money', async () => {
@@ -272,5 +320,63 @@ describe('PrestigeModal', () => {
     await fireEvent.press(screen.getByTestId('prestige-cancel'));
     expect(state().investors).toBe(0);
     expect(state().cash.eq(D(1e6))).toBe(true);
+  });
+});
+
+describe('PerksModal', () => {
+  it('renders nothing until it is opened', async () => {
+    await render(<PerksModal />);
+    expect(screen.queryByTestId('perks-modal')).toBeNull();
+  });
+
+  it('lists every perk with the unspent balance on top', async () => {
+    set({ investors: 30 });
+    useGameStore.setState({ perksOpen: true });
+
+    await render(<PerksModal />);
+    expect(screen.getByTestId('perks-available')).toHaveTextContent('30');
+    for (const def of PERKS) {
+      expect(screen.getByTestId(`perk-${def.id}`)).toBeTruthy();
+    }
+  });
+
+  it('buys a level and updates the balance in place', async () => {
+    set({ investors: 30 });
+    useGameStore.setState({ perksOpen: true });
+    await render(<PerksModal />);
+
+    const cost = nextPerkCost(state(), 'profit')!;
+    await fireEvent.press(screen.getByTestId('perk-buy-profit'));
+
+    expect(perkLevel(state(), 'profit')).toBe(1);
+    expect(screen.getByTestId('perks-available')).toHaveTextContent(String(30 - cost));
+    // The effect line only appears once there is an effect to report.
+    expect(screen.getByTestId('perk-effect-profit')).toBeTruthy();
+  });
+
+  it('disables a perk the player cannot afford', async () => {
+    set({ investors: 0 });
+    useGameStore.setState({ perksOpen: true });
+    await render(<PerksModal />);
+
+    await fireEvent.press(screen.getByTestId('perk-buy-profit'));
+    expect(perkLevel(state(), 'profit')).toBe(0);
+    expect(screen.queryByTestId('perk-effect-profit')).toBeNull();
+  });
+
+  it('shows MAX instead of a price on a maxed perk', async () => {
+    const base = state();
+    set({ investors: 1e9, perks: { ...base.perks, tap: getPerk('tap').maxLevel as number } });
+    useGameStore.setState({ perksOpen: true });
+    await render(<PerksModal />);
+
+    expect(screen.getByTestId('perk-buy-tap')).toHaveTextContent('MAX');
+  });
+
+  it('closes', async () => {
+    useGameStore.setState({ perksOpen: true });
+    await render(<PerksModal />);
+    await fireEvent.press(screen.getByTestId('perks-close'));
+    expect(useGameStore.getState().perksOpen).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
  */
 import * as core from '../index';
 import { D, Decimal, ZERO, decFromString, decToString, formatPercent } from '../numbers';
-import { BOOST_DURATION_MS, INVESTOR_BONUS, assertDecimal, getDef, getIndex } from '../businesses';
+import { BOOST_DURATION_MS, assertDecimal, getDef, getIndex } from '../businesses';
 import { businessPerSecond, getBusiness, lifetimeForInvestors, investorsForLifetime } from '../economy';
 import {
   activateBoost,
@@ -55,7 +55,7 @@ describe('Decimal serialization', () => {
 
 describe('formatting extras', () => {
   it('formats percentages', () => {
-    expect(formatPercent(INVESTOR_BONUS)).toBe('+2%');
+    expect(formatPercent(0.02)).toBe('+2%');
     expect(formatPercent(1.5)).toBe('+150%');
     expect(formatPercent(0.025, 1)).toBe('+2.5%');
   });
@@ -220,6 +220,9 @@ describe('barrel export', () => {
       'money',
       'BUSINESSES',
       'MILESTONES',
+      'MILESTONE_STEP',
+      'PERKS',
+      'buyPerk',
     ]) {
       expect(core).toHaveProperty(name);
     }

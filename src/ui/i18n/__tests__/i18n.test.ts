@@ -113,6 +113,22 @@ describe('every parameterised string', () => {
   });
 });
 
+describe('tight labels', () => {
+  /**
+   * The upgrade button shares a row with Buy and Manager. On a 360px phone it
+   * gets about 64px, and a measurement in the browser put "Upgrade ×2" at 73px
+   * — it clipped. This is the guard so a longer translation cannot quietly
+   * reintroduce that, in a place no unit test would otherwise look.
+   */
+  it('keeps the upgrade button label short enough for a narrow phone', () => {
+    for (const locale of [en, nl]) {
+      for (const level of [0, 1, 9, 42]) {
+        expect(locale.upgrade(level).length).toBeLessThanOrEqual(10);
+      }
+    }
+  });
+});
+
 describe('pluralisation', () => {
   it('uses the singular for one unit', () => {
     expect(en.nextMilestone(1)).toContain('1 unit');

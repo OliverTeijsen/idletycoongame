@@ -14,8 +14,6 @@ import {
   BOOST_DURATION_MS,
   BOOST_MULTIPLIER,
   BUSINESSES,
-  GOLDEN_DURATION_MS,
-  GOLDEN_MULTIPLIER,
   SAVE_VERSION,
   STARTING_BUSINESS,
   STARTING_OWNED,
@@ -29,10 +27,24 @@ import {
   cycleTimeFor,
   getBusiness,
   globalMultiplier,
+  managerCost,
+  offlineCapSeconds,
   perSecond,
   prestigeGain,
   resolveBuyCount,
+  unitCostMultiplier,
+  upgradeCost,
+  upgradeLevel,
+  upgradeMult,
 } from './economy';
+import {
+  availableInvestors,
+  freshPerks,
+  nextPerkCost,
+  perkGoldenDurationMs,
+  perkGoldenMultiplier,
+  perkTapCycles,
+} from './perks';
 import { dayIndex, nextStreakDay, streakAvailable, streakReward } from './streak';
 import type {
   AchievementId,
@@ -43,7 +55,9 @@ import type {
   GameState,
   OfflineResult,
   Payout,
+  PerkId,
   StreakResult,
+  UpgradeLevels,
 } from './types';
 
 /**
@@ -67,6 +81,14 @@ function freshBusinesses(): BusinessState[] {
   }));
 }
 
+/** Every tier back to upgrade level 0. Used by a new game and by prestige. */
+export function freshUpgrades(): UpgradeLevels {
+  return BUSINESSES.reduce((acc, def) => {
+    acc[def.id] = 0;
+    return acc;
+  }, {} as UpgradeLevels);
+}
+
 /** A brand-new save: one Fry Shack owned, nothing else. */
 export function createInitialState(now: number = Date.now()): GameState {
   return {
@@ -74,6 +96,8 @@ export function createInitialState(now: number = Date.now()): GameState {
     cash: ZERO,
     lifetimeEarnings: ZERO,
     investors: 0,
+    perks: freshPerks(),
+    upgrades: freshUpgrades(),
     businesses: freshBusinesses(),
     buyAmount: 1,
     boostRemainingMs: 0,
@@ -127,6 +151,9 @@ export function advance(state: GameState, dtSeconds: number): AdvanceResult {
 
 function advanceSlice(state: GameState, dtSeconds: number): AdvanceResult {
   const globalMult = globalMultiplier(state);
+  // One manual cycle pays this many cycles' worth — the `tap` perk. Computed
+  // once per step rather than per business: it is a global figure.
+  const tapCycles = perkTapCycles(state);
   const payouts: Payout[] = [];
   let earned = ZERO;
 
@@ -140,22 +167,25 @@ function advanceSlice(state: GameState, dtSeconds: number): AdvanceResult {
     // Effective cycle time, not `def.cycleTime`: speed milestones shorten it,
     // and the income maths in economy.ts reads the same helper.
     const total = bs.progress + dtSeconds / cycleTimeFor(def, bs.owned);
+    const tierMult = upgradeMult(state, bs.id);
 
     if (bs.managed) {
       const cycles = Math.floor(total + CYCLE_EPSILON);
       if (cycles > 0) {
-        const amount = cycleRevenueFor(def, bs.owned, globalMult).mul(cycles);
+        const amount = cycleRevenueFor(def, bs.owned, globalMult, tierMult).mul(cycles);
         earned = earned.add(amount);
         payouts.push({ id: bs.id, cycles, amount });
       }
       return { ...bs, progress: Math.max(0, total - cycles) };
     }
 
-    // Manually tapped: pay at most one cycle, then go idle.
+    // Manually tapped: pay one cycle (or `tapCycles` of them, with the perk),
+    // then go idle. The bar still runs once — the perk makes a tap worth more,
+    // not faster, so the animation stays honest.
     if (total + CYCLE_EPSILON >= 1) {
-      const amount = cycleRevenueFor(def, bs.owned, globalMult);
+      const amount = cycleRevenueFor(def, bs.owned, globalMult, tierMult).mul(tapCycles);
       earned = earned.add(amount);
-      payouts.push({ id: bs.id, cycles: 1, amount });
+      payouts.push({ id: bs.id, cycles: tapCycles, amount });
       return { ...bs, progress: 0, active: false };
     }
     return { ...bs, progress: total };
@@ -213,9 +243,8 @@ export function buy(state: GameState, id: BusinessId, amount?: BuyAmount): GameS
   const count = resolveBuyCount(state, id, amount);
   if (count <= 0) return state;
 
-  const def = getDef(id);
   const bs = getBusiness(state, id);
-  const cost = buyCost(def, bs.owned, count);
+  const cost = buyCost(getDef(id), bs.owned, count, unitCostMultiplier(state));
   if (state.cash.lt(cost)) return state;
 
   const next = cloneState(state);
@@ -229,15 +258,34 @@ export function hireManager(state: GameState, id: BusinessId): GameState {
   const bs = getBusiness(state, id);
   if (bs.managed) return state;
 
-  const def = getDef(id);
-  if (state.cash.lt(def.managerCost)) return state;
+  const cost = managerCost(state, id);
+  if (state.cash.lt(cost)) return state;
 
   const next = cloneState(state);
-  next.cash = state.cash.sub(def.managerCost);
+  next.cash = state.cash.sub(cost);
   const target = next.businesses[getIndex(id)];
   target.managed = true;
   target.active = false;
   return next;
+}
+
+/**
+ * Buy one cash upgrade for a tier: permanent ×2 on that tier for this run.
+ *
+ * No-op when unaffordable, or when the tier is unowned — doubling nothing is
+ * not a purchase, it is a way to lose money.
+ */
+export function buyUpgrade(state: GameState, id: BusinessId): GameState {
+  if (getBusiness(state, id).owned <= 0) return state;
+
+  const cost = upgradeCost(state, id);
+  if (state.cash.lt(cost)) return state;
+
+  return {
+    ...cloneState(state),
+    cash: state.cash.sub(cost),
+    upgrades: { ...state.upgrades, [id]: upgradeLevel(state, id) + 1 },
+  };
 }
 
 /** Switch the ×1/×10/×100/MAX toggle. */
@@ -247,9 +295,10 @@ export function setBuyAmount(state: GameState, amount: BuyAmount): GameState {
 }
 
 /**
- * Sell the empire: bank investors, wipe cash and businesses, keep the permanent
- * bonus. `lifetimeEarnings` persists — it is what the investor total is derived
- * from. No-op unless at least one investor would be gained.
+ * Sell the empire: bank investors, wipe cash and businesses, keep everything
+ * permanent. `lifetimeEarnings` persists — it is what the investor total is
+ * derived from — and so does the whole perk tree, which is where the permanent
+ * power now lives. No-op unless at least one investor would be gained.
  */
 export function prestige(state: GameState): GameState {
   const gained = prestigeGain(state);
@@ -259,10 +308,34 @@ export function prestige(state: GameState): GameState {
     ...state,
     cash: ZERO,
     investors: state.investors + gained,
+    // Perks are deliberately carried over untouched: they are the reason to
+    // prestige, so resetting them would make the button pointless.
+    perks: { ...state.perks },
+    // Cash upgrades go the other way — they were bought with cash, and cash is
+    // what a sale wipes. Keeping them would make every run start pre-solved.
+    upgrades: freshUpgrades(),
     businesses: freshBusinesses(),
     boostRemainingMs: 0,
     boostMultiplier: BOOST_MULTIPLIER,
     prestigeCount: state.prestigeCount + 1,
+  };
+}
+
+/**
+ * Spend investors on one level of a perk.
+ *
+ * No-op when the perk is maxed or the player cannot afford it — the UI disables
+ * the button in both cases, this is the safety net. Levels are the only thing
+ * investors can be spent on, so `availableInvestors` is the complete check.
+ */
+export function buyPerk(state: GameState, id: PerkId): GameState {
+  const cost = nextPerkCost(state, id);
+  if (cost === null) return state;
+  if (availableInvestors(state) < cost) return state;
+
+  return {
+    ...cloneState(state),
+    perks: { ...state.perks, [id]: (state.perks[id] ?? 0) + 1 },
   };
 }
 
@@ -284,9 +357,12 @@ export function activateBoost(
   };
 }
 
-/** Golden frietzak ✨ — the same boost system with a stronger multiplier. */
+/**
+ * Golden frietzak ✨ — the same boost system with a stronger multiplier, which
+ * the `golden` perk raises further (and lengthens).
+ */
 export function activateGoldenBoost(state: GameState): GameState {
-  return activateBoost(state, GOLDEN_DURATION_MS, GOLDEN_MULTIPLIER);
+  return activateBoost(state, perkGoldenDurationMs(state), perkGoldenMultiplier(state));
 }
 
 /** Add money (offline collect, time-skip reward, cash lump). Also credits lifetime. */
@@ -304,14 +380,15 @@ export function collect(state: GameState, amount: Decimal): GameState {
 // ---------------------------------------------------------------------------
 
 /**
- * Earnings for time spent away: `perSecond * min(elapsed, 12h)`.
+ * Earnings for time spent away: `perSecond * min(elapsed, cap)`, where the cap
+ * is 12h plus whatever the `offline` perk adds.
  *
  * Exact rather than approximate: owned counts cannot change while the player is
  * away, so the income rate is constant over the whole window.
  */
 export function offlineEarnings(state: GameState, elapsedSeconds: number): OfflineResult {
   const rawSeconds = Number.isFinite(elapsedSeconds) && elapsedSeconds > 0 ? elapsedSeconds : 0;
-  const seconds = cappedOfflineSeconds(rawSeconds);
+  const seconds = cappedOfflineSeconds(rawSeconds, offlineCapSeconds(state));
   return {
     seconds,
     rawSeconds,

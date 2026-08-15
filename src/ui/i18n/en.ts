@@ -31,6 +31,40 @@ export const en: Strings = {
     'streak-3': 'Regular',
     'streak-7': 'Week Straight',
     'streak-30': 'Institution',
+    'perks-1': 'First Lesson',
+    'perks-25': 'Tuition Paid',
+    'upgrades-10': 'Refurbished',
+    'upgrades-50': 'Rebuilt Everything',
+  },
+
+  perks: {
+    profit: 'Profit Margin',
+    payout: 'Exit Valuation',
+    cost: 'Bulk Discount',
+    manager: 'Staffing Agency',
+    offline: 'Night Shift',
+    tap: 'Fast Hands',
+    golden: 'Golden Fries',
+  },
+
+  perkDesc: {
+    profit: '×1.2 profit per level — no ceiling',
+    payout: '+10% investors per sale — no ceiling',
+    cost: '3% off every business, per level',
+    manager: '8% off every manager, per level',
+    offline: '+2 hours of offline earnings, per level',
+    tap: '+1 cycle per tap, per level',
+    golden: 'Golden fries ×1 stronger and 3s longer, per level',
+  },
+
+  perkEffect: {
+    profit: (v) => `now ×${v < 100 ? v.toFixed(2) : Math.round(v).toLocaleString('en')}`,
+    payout: (v) => `now +${Math.round(v * 100)}%`,
+    cost: (v) => `now −${Math.round(v * 100)}%`,
+    manager: (v) => `now −${Math.round(v * 100)}%`,
+    offline: (v) => `now ${v} hours`,
+    tap: (v) => `now ${v} ${v === 1 ? 'cycle' : 'cycles'} per tap`,
+    golden: (v) => `now ×${v}`,
   },
 
   buy: (count) => `Buy ×${count}`,
@@ -38,7 +72,9 @@ export const en: Strings = {
   managerHired: '✓ Auto',
   autoBadge: 'AUTO',
   nextMilestone: (units) => `Next ×2 in ${units} ${units === 1 ? 'unit' : 'units'}`,
-  allMilestones: 'All milestones reached ×1024',
+  // Kept to a glyph and a number: on a 360px phone this button is ~64px wide,
+  // and "Upgrade ×2" already overflows it. `a11yUpgrade` carries the meaning.
+  upgrade: (level) => (level === 0 ? '↑ ×2' : `↑ ×2 · ${level}`),
   tapToRun: 'tap to run',
   continuous: 'non-stop',
   nextSpeed: (units) => `2× faster in ${units}`,
@@ -66,11 +102,19 @@ export const en: Strings = {
   a11yOpenAchievements: (earned, total) => `Achievements, ${earned} of ${total} earned`,
 
   prestigeTitle: 'Sell your empire?',
-  prestigeBody: 'Your cash and every business are gone. Your investors stay — for good.',
-  prestigeSummary: (investors, percent) =>
-    `${investors} investors · ${percent} profit, permanently`,
+  prestigeBody:
+    'Your cash and every business are gone. Your investors and your skill tree stay — for good.',
+  prestigeSummary: (investors) => `${investors} investors to spend`,
   prestigeConfirm: 'Sell',
   prestigeCancel: 'Not just yet',
+
+  perksTitle: 'Investors 💼',
+  perksAvailable: (available, total) => `${available} free · ${total} earned all-time`,
+  perksSpendHint: 'Investors do nothing while they sit on the shelf. Spend them.',
+  perkLevelLabel: (level, max) => (max === null ? `Lv. ${level}` : `Lv. ${level}/${max}`),
+  perkMaxed: 'MAX',
+  perkEndless: '∞',
+  perksClose: 'Close',
 
   a11yRun: (name) => `Run ${name}`,
   a11yBuy: (count, name) => `Buy ${count} ${name}`,
@@ -78,4 +122,7 @@ export const en: Strings = {
   a11yHireManager: (name) => `Hire a manager for ${name}`,
   a11yBoost: (multiplier, seconds) => `${multiplier}× profit for ${seconds} seconds`,
   a11ySellEmpire: (investors) => `Sell your empire for ${investors} investors`,
+  a11yOpenPerks: (available) => `Skill tree, ${available} investors free to spend`,
+  a11yBuyPerk: (name, cost) => `Buy ${name} for ${cost} investors`,
+  a11yUpgrade: (name, level) => `Upgrade ${name} to level ${level}, doubles this tier's profit`,
 };

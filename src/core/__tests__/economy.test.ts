@@ -14,11 +14,12 @@ import {
   BUSINESSES,
   COST_MULTIPLIER,
   GOLDEN_MULTIPLIER,
-  INVESTOR_BONUS,
   MILESTONES,
+  MILESTONE_STEP,
   OFFLINE_CAP_SECONDS,
   getDef,
 } from '../businesses';
+import { PERK_PROFIT_STEP } from '../perks';
 import {
   buyCost,
   canAfford,
@@ -52,7 +53,7 @@ import {
   setBuyAmount,
   tap,
 } from '../engine';
-import type { BusinessId, GameState } from '../types';
+import type { BusinessId, GameState, PerkId } from '../types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,6 +80,12 @@ function stateWith(
   const state: GameState = { ...createInitialState(0), ...overrides };
   state.businesses = state.businesses.map((bs) => ({ ...bs, ...(businesses[bs.id] ?? {}) }));
   return state;
+}
+
+/** A state with the given perk levels bought (and the investors to match). */
+function withPerk(levels: Partial<Record<PerkId, number>>): GameState {
+  const base = createInitialState(0);
+  return { ...base, perks: { ...base.perks, ...levels } };
 }
 
 /** Naive reference implementation of maxBuy, used to check the analytic one. */
@@ -203,26 +210,55 @@ describe('maxBuy', () => {
 });
 
 describe('milestones', () => {
+  const LAST = MILESTONES[MILESTONES.length - 1];
+
   it('doubles the multiplier at each threshold', () => {
-    expect(milestoneMult(0)).toBe(1);
-    expect(milestoneMult(24)).toBe(1);
+    expect(milestoneMult(0).toNumber()).toBe(1);
+    expect(milestoneMult(24).toNumber()).toBe(1);
     MILESTONES.forEach((threshold, i) => {
-      expect(milestoneMult(threshold - 1)).toBe(Math.pow(2, i));
-      expect(milestoneMult(threshold)).toBe(Math.pow(2, i + 1));
+      expect(milestoneMult(threshold - 1).toNumber()).toBe(Math.pow(2, i));
+      expect(milestoneMult(threshold).toNumber()).toBe(Math.pow(2, i + 1));
     });
   });
 
-  it('caps at 2^10 once every milestone is passed', () => {
-    expect(milestoneMult(1000)).toBe(1024);
-    expect(milestoneMult(99999)).toBe(1024);
+  it('keeps doubling forever past the listed ladder', () => {
+    expect(milestoneMult(LAST).toNumber()).toBe(Math.pow(2, MILESTONES.length));
+    // One more step out, one more doubling — and nothing in between.
+    expect(milestoneMult(LAST + MILESTONE_STEP - 1).toNumber()).toBe(
+      Math.pow(2, MILESTONES.length),
+    );
+    expect(milestoneMult(LAST + MILESTONE_STEP).toNumber()).toBe(
+      Math.pow(2, MILESTONES.length + 1),
+    );
+    expect(milestoneMult(LAST + 10 * MILESTONE_STEP).toNumber()).toBe(
+      Math.pow(2, MILESTONES.length + 10),
+    );
   });
 
-  it('reports the next threshold and the distance to it', () => {
+  it('stays exact past the range of a JS number', () => {
+    // 2^1100 is Infinity as a float. This is the case the Decimal return exists
+    // for: an endless ladder does reach counts like this.
+    const owned = LAST + 1_100 * MILESTONE_STEP;
+    const mult = milestoneMult(owned);
+    expect(Number.isFinite(mult.mantissa)).toBe(true);
+    expect(mult.toNumber()).toBe(Infinity);
+    expect(mult.log10()).toBeCloseTo((MILESTONES.length + 1_100) * Math.log10(2), 6);
+  });
+
+  it('reports the next threshold and the distance to it, always', () => {
     expect(nextMilestone(0)).toBe(25);
     expect(nextMilestone(25)).toBe(50);
-    expect(nextMilestone(1000)).toBeNull();
     expect(unitsToNextMilestone(10)).toBe(15);
-    expect(unitsToNextMilestone(1000)).toBeNull();
+
+    // There is no "all milestones reached" state any more — the wall that
+    // ended the game after a day was exactly this returning null.
+    expect(nextMilestone(LAST)).toBe(LAST + MILESTONE_STEP);
+    expect(unitsToNextMilestone(LAST)).toBe(MILESTONE_STEP);
+    expect(unitsToNextMilestone(LAST + 1)).toBe(MILESTONE_STEP - 1);
+    for (const owned of [0, 1, 24, 999, 1000, 5_000, 123_456]) {
+      expect(unitsToNextMilestone(owned)).toBeGreaterThan(0);
+      expect(nextMilestone(owned)).toBeGreaterThan(owned);
+    }
   });
 
   it('feeds straight into cycle revenue', () => {
@@ -235,16 +271,21 @@ describe('milestones', () => {
 });
 
 describe('global multiplier', () => {
-  it('grants +2% per investor', () => {
-    expect(globalMultiplier(stateWith({ investors: 0 }))).toBeCloseTo(1, 12);
-    expect(globalMultiplier(stateWith({ investors: 1 }))).toBeCloseTo(1 + INVESTOR_BONUS, 12);
-    expect(globalMultiplier(stateWith({ investors: 50 }))).toBeCloseTo(2, 12);
-    expect(globalMultiplier(stateWith({ investors: 250 }))).toBeCloseTo(6, 12);
+  it('comes from the profit perk, not from holding investors', () => {
+    // Holding a thousand investors is worth exactly nothing until they are
+    // spent — that is the whole point of the skill tree.
+    expect(globalMultiplier(stateWith({ investors: 1_000 }))).toBeCloseTo(1, 12);
+
+    expect(globalMultiplier(withPerk({ profit: 1 }))).toBeCloseTo(PERK_PROFIT_STEP, 12);
+    expect(globalMultiplier(withPerk({ profit: 3 }))).toBeCloseTo(
+      Math.pow(PERK_PROFIT_STEP, 3),
+      12,
+    );
   });
 
-  it('doubles while the boost is active and stacks with investors', () => {
-    const boosted = activateBoost(stateWith({ investors: 50 }));
-    expect(globalMultiplier(boosted)).toBeCloseTo(4, 12);
+  it('doubles while the boost is active and stacks with the perk', () => {
+    const boosted = activateBoost(withPerk({ profit: 2 }));
+    expect(globalMultiplier(boosted)).toBeCloseTo(Math.pow(PERK_PROFIT_STEP, 2) * 2, 12);
   });
 
   it('uses the golden frietzak multiplier when that boost is running', () => {
@@ -326,10 +367,11 @@ describe('advance', () => {
     expectClose(advance(tapped, 10_000).earned, 3);
   });
 
-  it('applies investor and boost multipliers to payouts', () => {
-    const state = activateBoost(stateWith({ investors: 50 }, { friet: { owned: 1, managed: true } }));
-    // 3 base × (1 + 50×2%) × 2 boost = 12
-    expectClose(advance(state, FRIET.cycleTime).earned, 12);
+  it('applies perk and boost multipliers to payouts', () => {
+    const base = stateWith({}, { friet: { owned: 1, managed: true } });
+    const state = activateBoost({ ...base, perks: { ...base.perks, profit: 2 } });
+    // 3 base × 1.2² profit perk × 2 boost = 8.64
+    expectClose(advance(state, FRIET.cycleTime).earned, 3 * PERK_PROFIT_STEP ** 2 * 2);
   });
 
   it('splits the step at boost expiry so each portion is paid correctly', () => {
@@ -521,9 +563,14 @@ describe('prestige', () => {
     expect(getBusiness(state, 'wafel').owned).toBe(0);
   });
 
-  it('makes the permanent bonus survive the reset', () => {
-    const after = prestige(stateWith({ lifetimeEarnings: D(1e9) }));
-    expect(globalMultiplier(after)).toBeCloseTo(1 + 150 * INVESTOR_BONUS, 12);
+  it('carries the perk tree through the reset untouched', () => {
+    const spent = stateWith({ lifetimeEarnings: D(1e9) });
+    spent.perks = { ...spent.perks, profit: 4, tap: 2 };
+
+    const after = prestige(spent);
+    expect(after.perks.profit).toBe(4);
+    expect(after.perks.tap).toBe(2);
+    expect(globalMultiplier(after)).toBeCloseTo(Math.pow(PERK_PROFIT_STEP, 4), 12);
   });
 
   it('does not pay the same lifetime earnings twice', () => {

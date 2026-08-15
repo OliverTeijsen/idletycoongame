@@ -51,6 +51,56 @@ export interface BusinessState {
 /** Buy-multiplier toggle shown in the UI. */
 export type BuyAmount = 1 | 10 | 100 | 'MAX';
 
+/**
+ * Investor perks — the prestige skill tree.
+ *
+ * Investors are a *spendable* currency: they buy levels here and nothing else.
+ * Two of these have no maximum level, which is what makes prestige a loop the
+ * player can keep pulling instead of a bonus that tops out.
+ */
+export type PerkId =
+  | 'profit'
+  | 'payout'
+  | 'cost'
+  | 'manager'
+  | 'offline'
+  | 'tap'
+  | 'golden';
+
+/**
+ * One node of the skill tree.
+ *
+ * Like `AchievementDef`, this holds only numbers and an icon — names and the
+ * "what does it do" copy live in `ui/i18n`, keyed by id.
+ */
+export interface PerkDef {
+  readonly id: PerkId;
+  readonly icon: string;
+  /** Investors for the first level. Level n costs `baseCost * costGrowth^n`. */
+  readonly baseCost: number;
+  readonly costGrowth: number;
+  /** `null` means endless — there is always one more level to buy. */
+  readonly maxLevel: number | null;
+  /**
+   * Magnitude of a single level, in whatever unit the perk works in. The UI
+   * reads this to write "+20% per level" without hard-coding the number twice.
+   */
+  readonly step: number;
+}
+
+/** Levels bought per perk. Missing/zero = not bought. */
+export type PerkLevels = Record<PerkId, number>;
+
+/**
+ * Cash upgrade levels per business tier.
+ *
+ * Unlike perks, these are bought with cash and **reset on prestige** — they are
+ * part of a run, not of the meta. That is what gives cash a destination other
+ * than the next unit: a place to put money at the moment when the next unit is
+ * still out of reach.
+ */
+export type UpgradeLevels = Record<BusinessId, number>;
+
 export type AchievementId =
   | 'tap-100'
   | 'tap-1k'
@@ -66,7 +116,11 @@ export type AchievementId =
   | 'prestige-10'
   | 'streak-3'
   | 'streak-7'
-  | 'streak-30';
+  | 'streak-30'
+  | 'perks-1'
+  | 'perks-25'
+  | 'upgrades-10'
+  | 'upgrades-50';
 
 /**
  * An achievement is a threshold on a number read from the state. Keeping it to
@@ -91,8 +145,16 @@ export interface GameState {
   cash: Decimal;
   /** Total earned across *all* runs — never reset. Drives the prestige formula. */
   lifetimeEarnings: Decimal;
-  /** Permanent prestige currency (investors 💼). */
+  /**
+   * Investors 💼 ever earned. This is a *balance to spend*, not a multiplier:
+   * what is still unspent is `investors - spentInvestors(state)`, and the power
+   * comes entirely from the perk levels it was spent on.
+   */
   investors: number;
+  /** Skill-tree levels bought with investors. Survives prestige, like investors. */
+  perks: PerkLevels;
+  /** Cash upgrade levels per tier. Wiped by prestige, like cash and businesses. */
+  upgrades: UpgradeLevels;
   /** Aligned by index with BUSINESSES. */
   businesses: BusinessState[];
   buyAmount: BuyAmount;

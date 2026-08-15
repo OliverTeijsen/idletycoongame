@@ -31,6 +31,40 @@ export const nl: Strings = {
     'streak-3': 'Vaste klant',
     'streak-7': 'Week vol',
     'streak-30': 'Instituut',
+    'perks-1': 'Eerste les',
+    'perks-25': 'Schoolgeld betaald',
+    'upgrades-10': 'Verbouwd',
+    'upgrades-50': 'Alles vernieuwd',
+  },
+
+  perks: {
+    profit: 'Winstmarge',
+    payout: 'Overnamesom',
+    cost: 'Inkoopkorting',
+    manager: 'Uitzendbureau',
+    offline: 'Nachtploeg',
+    tap: 'Snelle handen',
+    golden: 'Gouden frietzak',
+  },
+
+  perkDesc: {
+    profit: '×1,2 winst per niveau — zonder plafond',
+    payout: '+10% investeerders per verkoop — zonder plafond',
+    cost: '3% korting op elke zaak, per niveau',
+    manager: '8% korting op elke manager, per niveau',
+    offline: '+2 uur offline verdienen, per niveau',
+    tap: '+1 cyclus per tik, per niveau',
+    golden: 'Gouden frietzak ×1 sterker en 3s langer, per niveau',
+  },
+
+  perkEffect: {
+    profit: (v) => `nu ×${v < 100 ? v.toFixed(2) : Math.round(v).toLocaleString('nl')}`,
+    payout: (v) => `nu +${Math.round(v * 100)}%`,
+    cost: (v) => `nu −${Math.round(v * 100)}%`,
+    manager: (v) => `nu −${Math.round(v * 100)}%`,
+    offline: (v) => `nu ${v} uur`,
+    tap: (v) => `nu ${v} ${v === 1 ? 'cyclus' : 'cycli'} per tik`,
+    golden: (v) => `nu ×${v}`,
   },
 
   buy: (count) => `Koop ×${count}`,
@@ -38,7 +72,9 @@ export const nl: Strings = {
   managerHired: '✓ Auto',
   autoBadge: 'AUTO',
   nextMilestone: (units) => `Volgende ×2 over ${units} ${units === 1 ? 'stuk' : 'stuks'}`,
-  allMilestones: 'Alle mijlpalen behaald ×1024',
+  // Kept to a glyph and a number: on a 360px phone this button is ~64px wide,
+  // and "Upgrade ×2" already overflows it. `a11yUpgrade` carries the meaning.
+  upgrade: (level) => (level === 0 ? '↑ ×2' : `↑ ×2 · ${level}`),
   tapToRun: 'tik om te draaien',
   continuous: 'doorlopend',
   nextSpeed: (units) => `2× sneller over ${units}`,
@@ -67,11 +103,19 @@ export const nl: Strings = {
   a11yOpenAchievements: (earned, total) => `Prestaties, ${earned} van ${total} behaald`,
 
   prestigeTitle: 'Verkoop je imperium?',
-  prestigeBody: 'Je cash en al je zaken verdwijnen. Je investeerders blijven — voorgoed.',
-  prestigeSummary: (investors, percent) =>
-    `${investors} investeerders · ${percent} winst, permanent`,
+  prestigeBody:
+    'Je cash en al je zaken verdwijnen. Je investeerders en je skilltree blijven — voorgoed.',
+  prestigeSummary: (investors) => `${investors} investeerders om uit te geven`,
   prestigeConfirm: 'Verkopen',
   prestigeCancel: 'Nog even niet',
+
+  perksTitle: 'Investeerders 💼',
+  perksAvailable: (available, total) => `${available} vrij · ${total} ooit verdiend`,
+  perksSpendHint: 'Investeerders doen niets zolang ze op de plank liggen. Geef ze uit.',
+  perkLevelLabel: (level, max) => (max === null ? `Niv. ${level}` : `Niv. ${level}/${max}`),
+  perkMaxed: 'MAX',
+  perkEndless: '∞',
+  perksClose: 'Sluiten',
 
   a11yRun: (name) => `${name} draaien`,
   a11yBuy: (count, name) => `Koop ${count} ${name}`,
@@ -79,4 +123,8 @@ export const nl: Strings = {
   a11yHireManager: (name) => `Neem manager voor ${name}`,
   a11yBoost: (multiplier, seconds) => `${multiplier}× winst gedurende ${seconds} seconden`,
   a11ySellEmpire: (investors) => `Verkoop je imperium voor ${investors} investeerders`,
+  a11yOpenPerks: (available) => `Skilltree, ${available} investeerders vrij te besteden`,
+  a11yBuyPerk: (name, cost) => `Koop ${name} voor ${cost} investeerders`,
+  a11yUpgrade: (name, level) =>
+    `Upgrade ${name} naar niveau ${level}, verdubbelt de winst van deze zaak`,
 };
