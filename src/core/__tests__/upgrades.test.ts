@@ -6,14 +6,21 @@
  * collapsing into the same thing.
  */
 import {
-  UPGRADE_COST_FACTOR,
   UPGRADE_COST_GROWTH,
+  UPGRADE_MIN_UNITS,
   UPGRADE_STEP,
+  UPGRADE_VALUE_FACTOR,
   getDef,
 } from '../businesses';
+
+/** The unit-count an upgrade is priced at, mirroring `upgradeCostFor`. */
+function unitsFor(owned: number): number {
+  return Math.max(UPGRADE_MIN_UNITS, owned * UPGRADE_VALUE_FACTOR);
+}
 import {
   businessPerSecond,
   canBuyUpgrade,
+  costOfNext,
   cycleRevenue,
   perSecond,
   totalUpgradeLevels,
@@ -66,29 +73,64 @@ describe('levels and price', () => {
     }
   });
 
-  it('prices the first upgrade off the base unit cost of the tier', () => {
-    expectClose(upgradeCostFor(FRIET, 0), FRIET.baseCost.mul(UPGRADE_COST_FACTOR));
+  it('prices an upgrade as a share of the tier, at the current unit price', () => {
+    for (const owned of [0, 1, 40, 300, 5_000]) {
+      expectClose(upgradeCostFor(FRIET, owned, 0), costOfNext(FRIET, owned).mul(unitsFor(owned)));
+    }
+  });
+
+  /**
+   * The property that makes the track stable at every scale: a ×2 is worth
+   * `owned` more units, so pricing it at a fixed *fraction* of `owned` units
+   * fixes its value against a unit at a constant ratio. Without this the
+   * upgrade gets relatively better the bigger the tier grows, which is a
+   * runaway waiting to happen.
+   */
+  it('holds a constant value ratio against a single unit, at any size', () => {
+    const ratios = [50, 500, 5_000, 50_000].map((owned) => {
+      const unit = costOfNext(FRIET, owned);
+      const upgrade = upgradeCostFor(FRIET, owned, 0);
+      // A unit adds 1/owned of the tier; an upgrade adds 1x. Value per euro.
+      return upgrade.div(unit).toNumber() / owned;
+    });
+    for (const r of ratios) expect(r).toBeCloseTo(UPGRADE_VALUE_FACTOR, 6);
+  });
+
+  /**
+   * The regression that broke the game. Anchoring the price to `baseCost` left
+   * an upgrade at €120 while a unit of the same tier cost €55,000, so a ×2 on
+   * the whole tier was cheaper than a single unit and a simulated player bought
+   * 185 levels in the first hour.
+   */
+  it('keeps climbing with the tier it upgrades, never standing still', () => {
+    const cheap = upgradeCostFor(FRIET, 0, 0);
+    const dear = upgradeCostFor(FRIET, 100, 0);
+    expect(dear.div(cheap).toNumber()).toBeGreaterThan(1_000);
+    // And it is never cheaper than a single unit of the thing it doubles.
+    for (const owned of [0, 25, 100, 500]) {
+      expect(upgradeCostFor(FRIET, owned, 0).gte(costOfNext(FRIET, owned))).toBe(true);
+    }
   });
 
   it('multiplies the price by the growth factor each level', () => {
     for (const level of [1, 2, 5, 12]) {
       expectClose(
-        upgradeCostFor(FRIET, level),
-        FRIET.baseCost.mul(UPGRADE_COST_FACTOR).mul(Math.pow(UPGRADE_COST_GROWTH, level)),
+        upgradeCostFor(FRIET, 100, level),
+        costOfNext(FRIET, 100).mul(unitsFor(100)).mul(Math.pow(UPGRADE_COST_GROWTH, level)),
       );
     }
   });
 
   it('scales the price with the tier, so late tiers are not trivially upgraded', () => {
     const empire = getDef('empire');
-    expect(upgradeCostFor(empire, 0).gt(upgradeCostFor(FRIET, 0))).toBe(true);
+    expect(upgradeCostFor(empire, 0, 0).gt(upgradeCostFor(FRIET, 0, 0))).toBe(true);
   });
 
   it('never runs out of levels', () => {
     // Level 400 is a ×2^400 payoff at a price to match. The track has no top;
     // what stops the player is always the price.
-    const cost = upgradeCostFor(FRIET, 400);
-    expect(cost.gt(upgradeCostFor(FRIET, 399))).toBe(true);
+    const cost = upgradeCostFor(FRIET, 10, 400);
+    expect(cost.gt(upgradeCostFor(FRIET, 10, 399))).toBe(true);
     expect(Number.isFinite(cost.mantissa)).toBe(true);
   });
 

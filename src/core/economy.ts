@@ -18,9 +18,10 @@ import {
   PRESTIGE_DIVISOR,
   PRESTIGE_FACTOR,
   SPEED_MILESTONES,
-  UPGRADE_COST_FACTOR,
   UPGRADE_COST_GROWTH,
+  UPGRADE_MIN_UNITS,
   UPGRADE_STEP,
+  UPGRADE_VALUE_FACTOR,
   getDef,
   getIndex,
 } from './businesses';
@@ -261,14 +262,40 @@ export function upgradeMult(state: GameState, id: BusinessId): Decimal {
   return Decimal.pow(UPGRADE_STEP, upgradeLevel(state, id));
 }
 
-/** Price of the upgrade that takes a tier from `level` to `level + 1`. */
-export function upgradeCostFor(def: BusinessDef, level: number): Decimal {
-  return def.baseCost.mul(UPGRADE_COST_FACTOR).mul(Decimal.pow(UPGRADE_COST_GROWTH, level));
+/**
+ * Price of the upgrade that takes a tier from `level` to `level + 1`.
+ *
+ * A share of the tier's whole holding, at today's unit price:
+ *
+ *     max(MIN_UNITS, owned × VALUE_FACTOR) × costOfNext(owned) × GROWTH^level
+ *
+ * Both `owned` terms matter and neither is decoration. A ×2 on a tier is worth
+ * exactly `owned` more units, so scaling the price with `owned` fixes the value
+ * of an upgrade against a unit at a constant ratio — at ten units or ten
+ * million. Pricing it off `def.baseCost` instead is what let the upgrade track
+ * run away by sixty orders of magnitude; see `UPGRADE_VALUE_FACTOR`.
+ */
+export function upgradeCostFor(
+  def: BusinessDef,
+  owned: number,
+  level: number,
+  discount = 1,
+): Decimal {
+  const units = Math.max(UPGRADE_MIN_UNITS, owned * UPGRADE_VALUE_FACTOR);
+  return costOfNext(def, owned, discount)
+    .mul(units)
+    .mul(Decimal.pow(UPGRADE_COST_GROWTH, level));
 }
 
 /** Price of the next upgrade for a tier in the current state. */
 export function upgradeCost(state: GameState, id: BusinessId): Decimal {
-  return upgradeCostFor(getDef(id), upgradeLevel(state, id));
+  const def = getDef(id);
+  return upgradeCostFor(
+    def,
+    getBusiness(state, id).owned,
+    upgradeLevel(state, id),
+    unitCostMultiplier(state),
+  );
 }
 
 /**

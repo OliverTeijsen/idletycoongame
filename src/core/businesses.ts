@@ -79,20 +79,44 @@ export const CONTINUOUS_CYCLE_SECONDS = 0.12;
 /** Each upgrade level doubles that one tier's profit. No maximum level. */
 export const UPGRADE_STEP = 2;
 
-/** The first upgrade of a tier costs this many times its base unit price. */
-export const UPGRADE_COST_FACTOR = 30;
+/**
+ * An upgrade costs this fraction of the tier's *entire* current unit holding,
+ * priced at what a unit costs now. See `upgradeCostFor`.
+ *
+ * The anchor is the whole design, and getting it wrong broke the game once
+ * already. The first version priced an upgrade at a fixed multiple of
+ * `baseCost` — the price of the very first unit. Unit prices climb at
+ * 1.1^owned, so by 100 Fry Shacks a unit cost €55,000 while an upgrade worth a
+ * permanent ×2 on the whole tier still cost €120. The price stood still while
+ * everything around it went exponential: a simulated player bought 185 levels
+ * in the first hour and hit €1e64/s, sixty orders of magnitude past the same
+ * hour with upgrades switched off.
+ *
+ * Scaling with `owned` is what makes it stable rather than merely slower. A ×2
+ * is worth exactly `owned` extra units, so a price of `owned × unitCost` would
+ * make the two options equal value at any size. This factor is below 1, which
+ * makes an upgrade a genuinely better deal than a unit — by a constant ratio,
+ * at every scale, forever. That constant is the point: it cannot drift.
+ */
+export const UPGRADE_VALUE_FACTOR = 0.2;
 
 /**
- * Price growth per upgrade level.
- *
- * Deliberately *above* `UPGRADE_STEP`: an upgrade track that outgrew its own
- * price would spiral on its own and flatten every other system. At 2.2 against
- * a ×2 payoff it slowly loses ground to itself, so the next level becomes
- * affordable through milestones and perks rather than through the upgrades
- * already bought — which is what keeps the three systems pulling together
- * instead of one of them running away with the game.
+ * Floor on that unit count, so the first upgrade of a tier is a purchase rather
+ * than a rounding error when `owned` is still tiny.
  */
-export const UPGRADE_COST_GROWTH = 2.2;
+export const UPGRADE_MIN_UNITS = 6;
+
+/**
+ * Extra price growth per upgrade level, on top of the anchor above.
+ *
+ * The anchor keeps upgrades honest against the unit track; this decides how
+ * many of them are worth buying before units win again. An upgrade at level L
+ * is `1 / (UPGRADE_VALUE_FACTOR × growth^L)` times the value of a unit, so at
+ * 0.2 and 1.6 the ratios run 5.0, 3.1, 2.0, 1.2, 0.8 — four good levels per
+ * tier, then the money is better spent elsewhere and the cheapest next ×2 moves
+ * to whichever tier has been neglected. That rhythm is what this sets.
+ */
+export const UPGRADE_COST_GROWTH = 1.6;
 
 /**
  * Base cap on offline earnings, before the `offline` perk extends it.
