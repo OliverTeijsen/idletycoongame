@@ -157,7 +157,24 @@ export const STREAK_SECONDS_PER_DAY = 300;
 export const STREAK_MIN_REWARD = 30;
 
 /** Save schema version. Bump when the shape changes and add a migration. */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
+
+/**
+ * Saves written by exactly this version are discarded on load, not migrated.
+ *
+ * Version 4 shipped the mispriced upgrade track (see `UPGRADE_VALUE_FACTOR`).
+ * A few hours of play left `lifetimeEarnings` around 1e70, and that figure is
+ * never reset — it permanently decides the prestige payout — so a v4 save
+ * carried into a fixed build is still a finished game with no way back. No
+ * field-by-field migration can undo that, because nothing in the save records
+ * what was legitimately earned.
+ *
+ * Deliberately an exact match rather than "4 or below": versions 1 to 3 predate
+ * cash upgrades entirely and are perfectly sound. And deliberately a version
+ * check rather than a heuristic on the numbers — a legitimately enormous save
+ * must never be thrown away for the crime of being large.
+ */
+export const BROKEN_SAVE_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Business tiers (spec §4)

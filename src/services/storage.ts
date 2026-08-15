@@ -12,7 +12,7 @@
 import { createMMKV } from 'react-native-mmkv';
 
 import { ACHIEVEMENTS } from '../core/achievements';
-import { BUSINESSES, SAVE_VERSION } from '../core/businesses';
+import { BROKEN_SAVE_VERSION, BUSINESSES, SAVE_VERSION } from '../core/businesses';
 import { createInitialState, freshUpgrades } from '../core/engine';
 import { decFromString, decToString } from '../core/numbers';
 import { PERKS, freshPerks } from '../core/perks';
@@ -206,6 +206,11 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
 
   const saved = parsed as Partial<SavedGame>;
   if (typeof saved.cash !== 'string' || !Array.isArray(saved.businesses)) return null;
+
+  // A save from the build whose economy was broken is discarded, not migrated.
+  // Returning null here is the same path a corrupt save takes: the caller
+  // starts a new game. See BROKEN_SAVE_VERSION for why it cannot be migrated.
+  if (saved.version === BROKEN_SAVE_VERSION) return null;
 
   const fresh = createInitialState(now);
   const byId = new Map<BusinessId, Partial<SavedBusiness>>();

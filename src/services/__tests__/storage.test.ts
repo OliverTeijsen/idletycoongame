@@ -352,6 +352,45 @@ describe('codec — cash upgrades', () => {
   });
 });
 
+describe('codec — the ruined version 4', () => {
+  function v4(extra: Record<string, unknown> = {}): string {
+    return JSON.stringify({
+      version: 4,
+      cash: '1e70',
+      lifetimeEarnings: '1e72',
+      investors: 5_000_000,
+      perks: { profit: 300 },
+      upgrades: { friet: 185 },
+      businesses: [{ id: 'friet', owned: 1_500, progress: 0, managed: true, active: false }],
+      startedAt: 0,
+      lastActiveAt: 0,
+      ...extra,
+    });
+  }
+
+  it('throws the save away rather than migrating it', () => {
+    // v4 shipped the mispriced upgrade track. Its `lifetimeEarnings` is ruined
+    // and never resets, so there is nothing to salvage — the player gets a
+    // fresh game, which is the only state that is actually playable.
+    expect(deserializeState(v4(), 0)).toBeNull();
+  });
+
+  it('keeps every earlier version, which predates the broken track', () => {
+    // Versions 1-3 have no cash upgrades at all and are perfectly sound. A
+    // blanket "4 or below" would have thrown away saves that were never broken.
+    for (const version of [1, 2, 3]) {
+      const s = deserializeState(v4({ version, upgrades: undefined }), 0);
+      expect(s).not.toBeNull();
+      expect(s!.investors).toBe(5_000_000);
+    }
+  });
+
+  it('keeps version 5 and later, which is the fixed economy', () => {
+    expect(deserializeState(v4({ version: 5 }), 0)).not.toBeNull();
+    expect(deserializeState(v4({ version: 99 }), 0)).not.toBeNull();
+  });
+});
+
 describe('MMKV round-trip', () => {
   it('reports no save before anything is written', () => {
     expect(hasSave()).toBe(false);
