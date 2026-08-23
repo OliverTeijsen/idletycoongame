@@ -11,8 +11,11 @@ import { create } from 'zustand';
 import { tick } from '../game/loop';
 import { applyOffline, OfflineSummary } from '../game/offline';
 import { defaultState } from '../game/state';
+import { AutomationId, toggleAutobuyer } from '../game/systems/automation';
 import { buyDim, doDimBoost } from '../game/systems/dimensions';
 import { buyMoteUpgrade } from '../game/systems/motes';
+import { buyShardUpgrade, doCollapse } from '../game/systems/prestige';
+import { buyStarNode, respecStarChart } from '../game/systems/starchart';
 import { buySparkUpgrade, tapPower } from '../game/systems/upgrades';
 import { BuyAmount, GameOptions, GameState } from '../game/types';
 import { clearSave, loadGame, saveGame } from '../services/storage';
@@ -29,6 +32,11 @@ interface GameStore {
   buySparkUpgrade(id: string): void;
   buyMoteUpgrade(id: string): void;
   dimBoost(): void;
+  collapse(): void;
+  buyShardUpgrade(id: string): void;
+  buyStarNode(id: string): void;
+  respecStarChart(): void;
+  toggleAutobuyer(id: AutomationId): void;
   setBuyAmount(amount: BuyAmount): void;
   setOptions(patch: Partial<GameOptions>): void;
 
@@ -86,6 +94,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ game: republish(game) });
       get().save();
     }
+  },
+
+  collapse() {
+    const game = get().game;
+    if (doCollapse(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyShardUpgrade(id) {
+    const game = get().game;
+    if (buyShardUpgrade(game, id)) set({ game: republish(game) });
+  },
+
+  buyStarNode(id) {
+    const game = get().game;
+    if (buyStarNode(game, id)) set({ game: republish(game) });
+  },
+
+  respecStarChart() {
+    const game = get().game;
+    respecStarChart(game);
+    set({ game: republish(game) });
+  },
+
+  toggleAutobuyer(id) {
+    const game = get().game;
+    toggleAutobuyer(game, id);
+    set({ game: republish(game) });
   },
 
   setBuyAmount(amount) {

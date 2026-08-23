@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 1;
+export const CURRENT_VERSION = 2;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -26,6 +26,17 @@ export function defaultState(now: number = Date.now()): GameState {
     motes: ZERO,
     motesEver: ZERO,
     moteUpgrades: {},
+
+    shards: ZERO,
+    bestShards: ZERO,
+    shardsEver: ZERO,
+    collapses: 0,
+    shardUpgrades: {},
+
+    starChart: {},
+
+    automation: {},
+    autobuyTimer: 0,
 
     options: {
       notation: 'standard',

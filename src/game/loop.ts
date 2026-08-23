@@ -11,6 +11,7 @@
  */
 import { BAL } from './balance';
 import { clean } from './numbers';
+import { tickAutomation } from './systems/automation';
 import { tickDimensions } from './systems/dimensions';
 import { tickMotes } from './systems/motes';
 import { GameState } from './types';
@@ -25,15 +26,17 @@ export function tick(state: GameState, dt: number): void {
   tickDimensions(state, dt);
   tickMotes(state, dt);
 
-  // 2. Autobuyers — none until P1 (Phase 3).
+  // 2. Autobuyers (P1+): rule-based purchases after production.
+  tickAutomation(state, dt);
 
-  // 3. Unlock checks — tier reveal is driven by Dimension Boosts; the Motes
-  //    tab reveals itself via motesUnlocked(). Nothing to mutate yet.
+  // 3. Unlock checks — tier reveal is driven by Dimension Boosts; tabs
+  //    reveal themselves via their systems' unlocked() helpers.
 
   // 4. Sanitize the hot accumulators every tick so a bad multiplier can never
   //    poison the save (spec §4).
   state.spark = clean(state.spark);
   state.motes = clean(state.motes);
+  state.shards = clean(state.shards);
   state.timePlayed += dt;
 }
 

@@ -10,16 +10,22 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { BAL } from '../game/balance';
 import { createLoop } from '../game/loop';
 import { format } from '../game/numbers';
+import { automationUnlocked } from '../game/systems/automation';
 import { motesUnlocked } from '../game/systems/motes';
+import { collapseUnlocked } from '../game/systems/prestige';
+import { starChartUnlocked } from '../game/systems/starchart';
 import { useGameStore } from '../state/store';
 import { OfflineModal } from './components/OfflineModal';
 import { ResourceBar } from './components/ResourceBar';
+import { AutoScreen } from './screens/AutoScreen';
 import { CoreScreen } from './screens/CoreScreen';
 import { MotesScreen } from './screens/MotesScreen';
 import { OptionsScreen } from './screens/OptionsScreen';
+import { PrestigeScreen } from './screens/PrestigeScreen';
+import { StarChartScreen } from './screens/StarChartScreen';
 import { MAX_CONTENT_WIDTH, palette, spacing } from './theme';
 
-type TabId = 'core' | 'motes' | 'options';
+type TabId = 'core' | 'motes' | 'prestige' | 'chart' | 'auto' | 'options';
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('core');
@@ -57,6 +63,18 @@ export default function App() {
 
   const game = useGameStore((s) => s.game);
   const showMotes = motesUnlocked(game);
+  const showPrestige = collapseUnlocked(game);
+  const showChart = starChartUnlocked(game);
+  const showAuto = automationUnlocked(game);
+
+  // A tab can disappear on hard reset — fall back to Core.
+  const activeTab: TabId =
+    (tab === 'motes' && !showMotes) ||
+    (tab === 'prestige' && !showPrestige) ||
+    (tab === 'chart' && !showChart) ||
+    (tab === 'auto' && !showAuto)
+      ? 'core'
+      : tab;
 
   return (
     <SafeAreaProvider>
@@ -65,15 +83,24 @@ export default function App() {
         <View style={styles.column}>
           <ResourceBar />
           <View style={styles.content}>
-            {tab === 'core' && <CoreScreen />}
-            {tab === 'motes' && (showMotes ? <MotesScreen /> : <CoreScreen />)}
-            {tab === 'options' && <OptionsScreen />}
+            {activeTab === 'core' && <CoreScreen />}
+            {activeTab === 'motes' && <MotesScreen />}
+            {activeTab === 'prestige' && <PrestigeScreen />}
+            {activeTab === 'chart' && <StarChartScreen />}
+            {activeTab === 'auto' && <AutoScreen />}
+            {activeTab === 'options' && <OptionsScreen />}
           </View>
           <View style={styles.tabBar}>
-            <Tab label="CORE" active={tab === 'core'} onPress={() => setTab('core')} />
-            {showMotes && <Tab label="MOTES" active={tab === 'motes'} onPress={() => setTab('motes')} />}
-            <Tab label="COLLAPSE" locked lockHint={`✦ ${format(BAL.collapse.unlockSpark)}`} />
-            <Tab label="OPTIONS" active={tab === 'options'} onPress={() => setTab('options')} />
+            <Tab label="CORE" active={activeTab === 'core'} onPress={() => setTab('core')} />
+            {showMotes && <Tab label="MOTES" active={activeTab === 'motes'} onPress={() => setTab('motes')} />}
+            {showPrestige ? (
+              <Tab label="PRESTIGE" active={activeTab === 'prestige'} onPress={() => setTab('prestige')} />
+            ) : (
+              <Tab label="COLLAPSE" locked lockHint={`✦ ${format(BAL.collapse.unlockSpark)}`} />
+            )}
+            {showChart && <Tab label="CHART" active={activeTab === 'chart'} onPress={() => setTab('chart')} />}
+            {showAuto && <Tab label="AUTO" active={activeTab === 'auto'} onPress={() => setTab('auto')} />}
+            <Tab label="OPTIONS" active={activeTab === 'options'} onPress={() => setTab('options')} />
           </View>
         </View>
         <OfflineModal />

@@ -12,6 +12,7 @@
 import { BAL } from './balance';
 import { clean, decFromString, decToString } from './numbers';
 import { CURRENT_VERSION, defaultState } from './state';
+import { AUTOMATION_IDS } from './systems/automation';
 import { TIER_COUNT } from './systems/dimensions';
 import { GameOptions, GameState, NotationMode } from './types';
 
@@ -39,6 +40,13 @@ interface SavedGame {
   motes: string;
   motesEver: string;
   moteUpgrades: Record<string, number>;
+  shards: string;
+  bestShards: string;
+  shardsEver: string;
+  collapses: number;
+  shardUpgrades: Record<string, number>;
+  starChart: Record<string, boolean>;
+  automation: Record<string, boolean>;
   options: GameOptions;
 }
 
@@ -47,7 +55,9 @@ interface SavedGame {
 // ---------------------------------------------------------------------------
 
 const migrations: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
-  // v1 is the first version — nothing to migrate yet.
+  // v1 → v2 (Phase 3) added only new fields; default-filling below IS the
+  // migration for purely-additive changes.
+  1: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -80,6 +90,29 @@ function levelsOf(
   return out;
 }
 
+/** Keep only known ids mapped to true. */
+function activeSetOf(value: unknown, knownIds: Set<string>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return out;
+  for (const [id, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === true && knownIds.has(id)) out[id] = true;
+  }
+  return out;
+}
+
+/** Keep only known ids with an explicit boolean (toggles: missing = default). */
+function togglesOf(value: unknown, knownIds: Set<string>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return out;
+  for (const [id, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'boolean' && knownIds.has(id)) out[id] = v;
+  }
+  return out;
+}
+
+const KNOWN_STAR_NODES = new Set(BAL.starChart.map((n) => n.id));
+const KNOWN_AUTOMATION = new Set(AUTOMATION_IDS as readonly string[]);
+
 function notationOf(value: unknown): NotationMode {
   return value === 'scientific' || value === 'engineering' || value === 'standard'
     ? value
@@ -110,6 +143,13 @@ export function serializeState(state: GameState): string {
     motes: decToString(state.motes),
     motesEver: decToString(state.motesEver),
     moteUpgrades: { ...state.moteUpgrades },
+    shards: decToString(state.shards),
+    bestShards: decToString(state.bestShards),
+    shardsEver: decToString(state.shardsEver),
+    collapses: state.collapses,
+    shardUpgrades: { ...state.shardUpgrades },
+    starChart: { ...state.starChart },
+    automation: { ...state.automation },
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -182,6 +222,15 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     motes: decFromString(saved.motes ?? '0'),
     motesEver: decFromString(saved.motesEver ?? '0'),
     moteUpgrades: levelsOf(saved.moteUpgrades, BAL.motes.upgrades),
+
+    shards: decFromString(saved.shards ?? '0'),
+    bestShards: decFromString(saved.bestShards ?? '0'),
+    shardsEver: decFromString(saved.shardsEver ?? '0'),
+    collapses: int(saved.collapses, 0, 0),
+    shardUpgrades: levelsOf(saved.shardUpgrades, BAL.shardUpgrades),
+    starChart: activeSetOf(saved.starChart, KNOWN_STAR_NODES),
+    automation: togglesOf(saved.automation, KNOWN_AUTOMATION),
+    autobuyTimer: 0,
 
     options: {
       notation: notationOf(rawOptions.notation),

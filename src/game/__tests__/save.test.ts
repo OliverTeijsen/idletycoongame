@@ -21,9 +21,22 @@ describe('roundtrip', () => {
     s.options = { notation: 'scientific', reducedMotion: true, confirmResets: false };
     s.timePlayed = 5432;
 
+    s.shards = D(77);
+    s.bestShards = D(80);
+    s.shardsEver = D(120);
+    s.collapses = 3;
+    s.shardUpgrades = { swiftServos: 2 };
+    s.starChart = { ignite: true, kindling: true };
+    s.automation = { dim1: false };
+
     const back = deserializeState(serializeState(s), 2000)!;
     expect(back).not.toBeNull();
     expect(back.spark.eq(s.spark)).toBe(true);
+    expect(back.shards.eq(D(77))).toBe(true);
+    expect(back.collapses).toBe(3);
+    expect(back.shardUpgrades).toEqual({ swiftServos: 2 });
+    expect(back.starChart).toEqual({ ignite: true, kindling: true });
+    expect(back.automation).toEqual({ dim1: false });
     expect(back.dims[0].bought).toBe(25);
     expect(back.dims[0].amount.eq(D('1e6'))).toBe(true);
     expect(back.sparkUpgrades).toEqual(s.sparkUpgrades);
@@ -61,6 +74,9 @@ describe('untrusted input', () => {
     doc.totalTaps = 'lots';
     doc.dims[0] = { bought: -3, amount: '-1e10' };
     doc.sparkUpgrades = { ignition: 9999, hacked: 5 };
+    doc.starChart = { ignite: 'yes', fakeNode: true, kindling: true };
+    doc.automation = { dim1: 'off', hacked: true };
+    doc.shardUpgrades = { swiftServos: 9999 };
     doc.options = { notation: 'roman', reducedMotion: 'yes', confirmResets: null };
 
     const back = deserializeState(JSON.stringify(doc), 0)!;
@@ -73,6 +89,13 @@ describe('untrusted input', () => {
     const ignitionDef = BAL.sparkUpgrades.find((u) => u.id === 'ignition')!;
     expect(back.sparkUpgrades.ignition).toBe(ignitionDef.maxLevel);
     expect(back.sparkUpgrades.hacked).toBeUndefined();
+    // star chart: non-true and unknown entries dropped, valid ones kept
+    expect(back.starChart).toEqual({ kindling: true });
+    // automation: non-boolean and unknown ids dropped
+    expect(back.automation).toEqual({});
+    // shard upgrade clamped to its max
+    const servosDef = BAL.shardUpgrades.find((u) => u.id === 'swiftServos')!;
+    expect(back.shardUpgrades.swiftServos).toBe(servosDef.maxLevel);
     expect(back.options.notation).toBe('standard');
     expect(back.options.reducedMotion).toBe(false);
   });

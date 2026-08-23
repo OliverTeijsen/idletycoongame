@@ -8,9 +8,13 @@
 import { BAL, RepeatableUpgradeDef } from '../balance';
 import { D, Decimal, ONE, cleanMul } from '../numbers';
 import { GameState } from '../types';
+import { starTapMult } from './starchart';
 
-/** Cost of the next level of a repeatable upgrade. */
-export function upgradeCost(def: RepeatableUpgradeDef, level: number): Decimal {
+/** Cost of the next level of any geometric-cost upgrade. */
+export function upgradeCost(
+  def: { baseCost: Decimal; costGrowth: Decimal },
+  level: number,
+): Decimal {
   return def.baseCost.mul(def.costGrowth.pow(Math.max(0, level)));
 }
 
@@ -50,9 +54,9 @@ export function buySparkUpgrade(state: GameState, id: string): boolean {
   return true;
 }
 
-/** Spark granted per tap: tapBase × Charge Coil. */
+/** Spark granted per tap: tapBase × Charge Coil × star nodes. */
 export function tapPower(state: GameState): Decimal {
   const coil = sparkDefs.get('chargeCoil');
   const mult = coil ? upgradeMult(coil, sparkUpgradeLevel(state, 'chargeCoil')) : ONE;
-  return D(BAL.tapBase).mul(mult);
+  return D(BAL.tapBase).mul(mult).mul(starTapMult(state));
 }

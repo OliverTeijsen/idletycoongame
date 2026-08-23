@@ -18,6 +18,8 @@ import {
   highestUnlockedTier,
 } from '../systems/dimensions';
 import { buyMoteUpgrade } from '../systems/motes';
+import { buyShardUpgrade, canCollapse, collapseGain, doCollapse } from '../systems/prestige';
+import { buyStarNode } from '../systems/starchart';
 import { buySparkUpgrade, tapPower } from '../systems/upgrades';
 import { GameState } from '../types';
 
@@ -93,6 +95,51 @@ describe('pacing', () => {
     console.log(
       `[pacing] after 2h: spark=${s.spark.toString()} boosts=${s.dimBoosts} tiers=${highestUnlockedTier(s)}/${TIER_COUNT} motes=${s.motes.toString()}`,
     );
+  });
+
+  it('the collapse loop accelerates re-runs and reaches Ascend-scale shards', () => {
+    const s = defaultState(0);
+
+    /** Greedy P1 player: collapse when the gain is a meaningful step up. */
+    const playWithCollapses = (sec: number) => {
+      playSecond(s, sec < 180 ? 4 : 0);
+      if (canCollapse(s)) {
+        const gain = collapseGain(s);
+        // collapse when gain would at least +25% our shard stash (or first time)
+        if (s.collapses === 0 || gain.gte(s.shards.add(1).mul(0.25))) doCollapse(s);
+      }
+      for (const u of BAL.shardUpgrades) buyShardUpgrade(s, u.id);
+      for (const n of BAL.starChart) buyStarNode(s, n.id);
+    };
+
+    let firstCollapseAt = -1;
+    let secondCollapseAt = -1;
+    let ascendReadyAt = -1;
+    const HORIZON = 3 * 3600;
+    for (let sec = 0; sec < HORIZON; sec++) {
+      playWithCollapses(sec);
+      if (firstCollapseAt < 0 && s.collapses >= 1) firstCollapseAt = sec;
+      if (secondCollapseAt < 0 && s.collapses >= 2) secondCollapseAt = sec;
+      if (ascendReadyAt < 0 && s.bestShards.gte(50)) {
+        ascendReadyAt = sec;
+        break;
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      `[pacing] collapse#1: ${firstCollapseAt}s · collapse#2: +${secondCollapseAt - firstCollapseAt}s · 50 bestShards: ${ascendReadyAt}s · collapses=${s.collapses} shardsEver=${s.shardsEver.toString()}`,
+    );
+
+    expect(firstCollapseAt).toBeGreaterThan(0);
+    // the re-run to the second collapse must be faster than the first climb
+    expect(secondCollapseAt - firstCollapseAt).toBeLessThan(firstCollapseAt);
+    // Ascend threshold (bestShards ≥ 50) reachable within the horizon
+    // (spec window: 45–90 min for a human; the bot is faster)
+    expect(ascendReadyAt).toBeGreaterThan(300);
+    expect(ascendReadyAt).toBeLessThan(HORIZON);
+    // no state poisoning across many resets
+    expect(Number.isNaN(s.spark.mantissa)).toBe(false);
+    expect(Number.isNaN(s.shards.mantissa)).toBe(false);
   });
 
   it('absurd wealth (1e300+) keeps ticking finitely', () => {

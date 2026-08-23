@@ -30,6 +30,36 @@ export interface RepeatableUpgradeDef {
   maxLevel: number | null;
 }
 
+/** Star Chart node (spec §8.1). Effects compose in multipliers.ts. */
+export type StarNodeEffect =
+  | { kind: 'global'; mult: Decimal }
+  | { kind: 'tier'; tier: number; mult: Decimal }
+  | { kind: 'mote'; mult: Decimal }
+  | { kind: 'tap'; mult: Decimal }
+  | { kind: 'speed'; mult: Decimal }
+  | { kind: 'offlineCapH'; hours: number }
+  | { kind: 'autobuyTier'; tier: number };
+
+export interface StarNodeDef {
+  id: string;
+  name: string;
+  desc: string;
+  cost: Decimal; // in Shards
+  ring: 1 | 2 | 3;
+  requires: string[]; // all must be active
+  effect: StarNodeEffect;
+}
+
+/** Shard upgrade (P1's own tree, spec §7). Effects are bespoke per id. */
+export interface ShardUpgradeDef {
+  id: string;
+  name: string;
+  desc: string;
+  baseCost: Decimal; // in Shards
+  costGrowth: Decimal;
+  maxLevel: number | null;
+}
+
 export const BAL = {
   /** Spark granted per tap before Charge Coil. */
   tapBase: D(1),
@@ -155,8 +185,75 @@ export const BAL = {
     ] as RepeatableUpgradeDef[],
   },
 
-  /** P1 teaser + gain formula (implemented in Phase 3; threshold shown as the locked-tab hint now). */
-  collapse: { unlockSpark: D(1e6), coef: D(1e4), exp: 0.5 },
+  /**
+   * P1 — Collapse (spec §7). Gain: shards = floor((bestSparkRun/coef)^exp).
+   * Effect: global ×(1 + multPerShard·shards), softcapped (softcap.shard).
+   */
+  collapse: { unlockSpark: D(1e6), coef: D(1e4), exp: 0.5, multPerShard: D(0.25) },
+
+  /** Shard upgrade tree (P1's own tree). Effects are implemented in prestige.ts/shardperks.ts. */
+  shardUpgrades: [
+    {
+      id: 'swiftServos',
+      name: 'Swift Servos',
+      desc: 'Autobuyers act 2× faster',
+      baseCost: D(3),
+      costGrowth: D(3),
+      maxLevel: 5,
+    },
+    {
+      id: 'emberBank',
+      name: 'Ember Bank',
+      desc: 'Start runs with Spark (×10 per level)',
+      baseCost: D(2),
+      costGrowth: D(4),
+      maxLevel: 8,
+    },
+    {
+      id: 'moteEcho',
+      name: 'Mote Echo',
+      desc: 'Keep 20% of Motes per level on Collapse',
+      baseCost: D(4),
+      costGrowth: D(4),
+      maxLevel: 5,
+    },
+    {
+      id: 'boostEcho',
+      name: 'Boost Echo',
+      desc: 'Keep 1 Dimension Boost per level on Collapse',
+      baseCost: D(6),
+      costGrowth: D(6),
+      maxLevel: 3,
+    },
+  ] as ShardUpgradeDef[],
+
+  /**
+   * Star Chart (spec §8.1). Ring 1 opens at P1; rings 2/3 gate on later
+   * prestige layers (teased now, purchasable in their phases).
+   */
+  starChart: [
+    // trunk
+    { id: 'ignite', name: 'Ignite', desc: 'All production +10%', cost: D(1), ring: 1, requires: [], effect: { kind: 'global', mult: D(1.1) } },
+    // production branch
+    { id: 'kindling', name: 'Kindling', desc: 'Tier 1 production ×1.5', cost: D(2), ring: 1, requires: ['ignite'], effect: { kind: 'tier', tier: 1, mult: D(1.5) } },
+    { id: 'lattice', name: 'Lattice', desc: 'Tier 2 production ×1.5', cost: D(3), ring: 1, requires: ['kindling'], effect: { kind: 'tier', tier: 2, mult: D(1.5) } },
+    { id: 'corona', name: 'Corona', desc: 'All production +25%', cost: D(6), ring: 1, requires: ['lattice'], effect: { kind: 'global', mult: D(1.25) } },
+    // mote branch
+    { id: 'moteStream', name: 'Mote Stream', desc: 'Mote gain ×2', cost: D(2), ring: 1, requires: ['ignite'], effect: { kind: 'mote', mult: D(2) } },
+    { id: 'moteFlood', name: 'Mote Flood', desc: 'Mote gain ×2', cost: D(4), ring: 1, requires: ['moteStream'], effect: { kind: 'mote', mult: D(2) } },
+    { id: 'moteSea', name: 'Mote Sea', desc: 'Mote gain ×3', cost: D(8), ring: 1, requires: ['moteFlood'], effect: { kind: 'mote', mult: D(3) } },
+    // automation / QoL branch
+    { id: 'handspark', name: 'Handspark', desc: 'Tap power ×4', cost: D(2), ring: 1, requires: ['ignite'], effect: { kind: 'tap', mult: D(4) } },
+    { id: 'servo4', name: 'Fourth Servo', desc: 'Autobuyer for Tier 4', cost: D(5), ring: 1, requires: ['handspark'], effect: { kind: 'autobuyTier', tier: 4 } },
+    { id: 'driftClock', name: 'Drift Clock', desc: 'Offline cap +2h', cost: D(6), ring: 1, requires: ['servo4'], effect: { kind: 'offlineCapH', hours: 2 } },
+    { id: 'gyreSpin', name: 'Gyre Spin', desc: 'Orbit speed +25%', cost: D(8), ring: 1, requires: ['driftClock'], effect: { kind: 'speed', mult: D(1.25) } },
+    // ring 2 teasers (purchasable from Phase 4 / Ascend)
+    { id: 'outerIgnite', name: 'Outer Ignite', desc: 'All production +50%', cost: D(15), ring: 2, requires: ['corona'], effect: { kind: 'global', mult: D(1.5) } },
+    { id: 'outerMote', name: 'Outer Stream', desc: 'Mote gain ×5', cost: D(20), ring: 2, requires: ['moteSea'], effect: { kind: 'mote', mult: D(5) } },
+  ] as StarNodeDef[],
+
+  /** Automation v1 (spec §8.7). Base seconds between autobuyer passes. */
+  automation: { baseInterval: 1 },
 
   /**
    * Softcaps (spec §6.5). Focus and Density are capped beyond the spec's
@@ -165,6 +262,8 @@ export const BAL = {
    * lategame polynomially.
    */
   softcap: {
+    /** Applied to the Shard multiplier (1 + 0.25·shards). */
+    shard: { t: D(1e3), p: 0.5 },
     /** Applied to the composed Resonance multiplier. */
     resonance: { t: D(1e4), p: 0.5 },
     /** Applied to the composed Flux Lattice multiplier. */

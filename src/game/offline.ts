@@ -9,6 +9,7 @@
 import { BAL } from './balance';
 import { Decimal } from './numbers';
 import { tick } from './loop';
+import { starOfflineCapHours } from './systems/starchart';
 import { GameState } from './types';
 
 export interface OfflineSummary {
@@ -20,8 +21,8 @@ export interface OfflineSummary {
   motesGained: Decimal;
 }
 
-export function offlineCapSeconds(_state: GameState): number {
-  return BAL.offline.baseCapH * 3600;
+export function offlineCapSeconds(state: GameState): number {
+  return (BAL.offline.baseCapH + starOfflineCapHours(state)) * 3600;
 }
 
 /**

@@ -48,6 +48,21 @@ export interface GameState {
   motesEver: Dec;
   moteUpgrades: Record<string, number>;
 
+  // P1 — Collapse
+  shards: Dec;
+  bestShards: Dec;
+  shardsEver: Dec;
+  collapses: number;
+  shardUpgrades: Record<string, number>;
+
+  // Star Chart: nodeId -> active
+  starChart: Record<string, boolean>;
+
+  // Automation: autobuyer id -> enabled. Missing id = ON (default-on).
+  automation: Record<string, boolean>;
+  /** Seconds since the last autobuyer pass. Transient — not saved. */
+  autobuyTimer: number;
+
   options: GameOptions;
 }
 

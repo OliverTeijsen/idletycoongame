@@ -7,6 +7,7 @@
 import { BAL, RepeatableUpgradeDef } from '../balance';
 import { Decimal, ONE, ZERO, clean, softcap } from '../numbers';
 import { GameState } from '../types';
+import { starMoteMult } from './starchart';
 import { upgradeCost, upgradeMaxed, upgradeMult } from './upgrades';
 
 const moteDefs = new Map(BAL.motes.upgrades.map((u) => [u.id, u]));
@@ -27,11 +28,13 @@ export function resonanceMult(state: GameState): Decimal {
   return softcap(raw, BAL.softcap.resonance.t, BAL.softcap.resonance.p);
 }
 
-/** Motes per second: base * sqrt(Tier-1 amount) * resonance. */
+/** Motes per second: base * sqrt(Tier-1 amount) * resonance * star nodes. */
 export function moteRate(state: GameState): Decimal {
   const t1 = state.dims[0]?.amount ?? ZERO;
   if (t1.lte(ZERO)) return ZERO;
-  return clean(BAL.motes.base.mul(t1.sqrt()).mul(resonanceMult(state)));
+  return clean(
+    BAL.motes.base.mul(t1.sqrt()).mul(resonanceMult(state)).mul(starMoteMult(state)),
+  );
 }
 
 /** Advance Mote accrual by dt seconds. Mutates `state`. */

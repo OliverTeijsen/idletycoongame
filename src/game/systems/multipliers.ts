@@ -27,11 +27,27 @@ import { Decimal, ONE, cleanMul, softcap } from '../numbers';
 import { GameState } from '../types';
 import { sparkUpgradeDef, sparkUpgradeLevel, upgradeMult } from './upgrades';
 import { moteUpgradeDef, moteUpgradeLevel } from './motes';
+import { starGlobalMult, starSpeedMult, starTierMult } from './starchart';
+
+/**
+ * Shard multiplier: softcap(1 + 0.25·shardsEver). Computed every time — never
+ * stored — so it survives every reset correctly (§19).
+ *
+ * Deliberately based on LIFETIME shards, not the current balance: with the
+ * spec's literal "current shards" reading, spending on the Star Chart cut the
+ * global multiplier and the measured re-run after Collapse #1 was *slower*
+ * than the first climb — inverting §10's "re-runs 3–10× faster" rule. Spend
+ * freely; the multiplier only grows.
+ */
+export function shardMult(state: GameState): Decimal {
+  const raw = ONE.add(BAL.collapse.multPerShard.mul(state.shardsEver));
+  return cleanMul(softcap(raw, BAL.softcap.shard.t, BAL.softcap.shard.p));
+}
 
 /** Global production multiplier applied to every tier's output. */
-export function globalMult(_state: GameState): Decimal {
-  // Layer 0 has no global sources yet; prestige layers multiply in here.
-  return cleanMul(ONE);
+export function globalMult(state: GameState): Decimal {
+  // §9 composition order — append-only as layers unlock.
+  return cleanMul(starGlobalMult(state).mul(shardMult(state)));
 }
 
 /**
@@ -42,7 +58,9 @@ export function speedMult(state: GameState): Decimal {
   const focus = moteUpgradeDef('focus');
   if (!focus) return ONE;
   const raw = upgradeMult(focus, moteUpgradeLevel(state, 'focus'));
-  return cleanMul(softcap(raw, BAL.softcap.focus.t, BAL.softcap.focus.p));
+  return cleanMul(
+    softcap(raw, BAL.softcap.focus.t, BAL.softcap.focus.p).mul(starSpeedMult(state)),
+  );
 }
 
 /** Multiplier on Spark output specifically (Tier-1 production). */
@@ -64,9 +82,9 @@ export function sparkMult(state: GameState): Decimal {
   return cleanMul(m);
 }
 
-/** Per-tier multiplier (1-indexed tier). Dimension Boosts, Ignition, Cascade. */
+/** Per-tier multiplier (1-indexed). Dimension Boosts, Ignition, Cascade, star nodes. */
 export function tierMult(state: GameState, tier: number): Decimal {
-  let m = BAL.dimBoost.mult.pow(state.dimBoosts);
+  let m = BAL.dimBoost.mult.pow(state.dimBoosts).mul(starTierMult(state, tier));
 
   if (tier === 1) {
     const ignition = sparkUpgradeDef('ignition');
@@ -89,7 +107,9 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
   return [
     { label: 'Dimension Boosts', value: BAL.dimBoost.mult.pow(state.dimBoosts) },
     { label: 'Spark upgrades', value: sparkMult(state) },
-    { label: 'Orbit speed (Focus)', value: speedMult(state) },
-    { label: 'Global', value: globalMult(state) },
+    { label: 'Orbit speed', value: speedMult(state) },
+    { label: 'Star Chart', value: starGlobalMult(state) },
+    { label: 'Shards', value: shardMult(state) },
+    { label: 'Global (total)', value: globalMult(state) },
   ];
 }
