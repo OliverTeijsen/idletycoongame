@@ -72,6 +72,38 @@ export interface PrismUpgradeDef {
 
 export type ElementId = 'ignis' | 'aqua' | 'terra' | 'aer' | 'lux';
 
+/** Aeon tree node (P3's own tree, spec §7): one-time structural perks. */
+export interface AeonNodeDef {
+  id: string;
+  name: string;
+  desc: string;
+  cost: Decimal; // in Aeon
+}
+
+/** Miner def (spec §8.3). Bought with Spark; produces Ore continuously. */
+export interface MinerDef {
+  id: string;
+  name: string;
+  baseCost: Decimal; // in Spark
+  costGrowth: Decimal;
+  orePerSec: Decimal;
+}
+
+/** Research node (spec §8.3): one-time, bought with Ore, survives Converge. */
+export interface ResearchDef {
+  id: string;
+  name: string;
+  desc: string;
+  cost: Decimal; // in Ore
+}
+
+/** Boost Manager (spec §8.7): assignable to limited slots. */
+export interface ManagerDef {
+  id: string;
+  name: string;
+  desc: string;
+}
+
 export interface ElementDef {
   id: ElementId;
   symbol: string;
@@ -403,6 +435,58 @@ export const BAL = {
     stillRingReward: D(1.5),
     famineReward: D(3),
     solitaryReward: D(1.1),
+  },
+
+  /**
+   * P3 — Converge (spec §7). Gain: aeon = floor(log2(bestPrism + 1)) — slow
+   * on purpose. Effect: all tier multipliers ×tierMultPer per lifetime Aeon,
+   * offline cap +offlineCapHPer hours per lifetime Aeon.
+   */
+  converge: { unlockPrism: D(30), tierMultPer: D(1.5), offlineCapHPer: 1 },
+
+  /** Aeon tree (P3's own tree): permanent structural nodes. */
+  aeonTree: [
+    { id: 'autoCollapse', name: 'Standing Wave', desc: 'Auto-Collapse when the gain is worthwhile', cost: D(2) },
+    { id: 'keepMotes', name: 'Mote Memory', desc: 'Keep 50% of Motes through Ascend', cost: D(3) },
+    { id: 'dimPower', name: 'Deep Engine', desc: 'All tier production ×2', cost: D(4) },
+    { id: 'keepChart', name: 'Fixed Stars', desc: 'Star Chart nodes survive Ascend', cost: D(5) },
+  ] as AeonNodeDef[],
+
+  /** Miners (spec §8.3): Ore producers. Only Converge/Unify reset them. */
+  miners: [
+    { id: 'drill', name: 'Drill', baseCost: D(1e8), costGrowth: D(4), orePerSec: D(0.1) },
+    { id: 'auger', name: 'Auger', baseCost: D(1e12), costGrowth: D(5), orePerSec: D(0.6) },
+    { id: 'rig', name: 'Rig', baseCost: D(1e17), costGrowth: D(6), orePerSec: D(3) },
+  ] as MinerDef[],
+
+  /** Research tree: one-time Ore purchases; the permanent slow backbone. */
+  research: [
+    { id: 'oreSluice', name: 'Sluice', desc: 'Ore gain ×2', cost: D(50) },
+    { id: 'fastServos', name: 'Overclock', desc: 'Autobuyers act 2× faster', cost: D(120) },
+    { id: 'deepClock', name: 'Deep Clock', desc: 'Offline cap +4h', cost: D(250) },
+    { id: 'slotA', name: 'Quarters I', desc: '+1 Boost Manager slot', cost: D(400) },
+    { id: 'oreVein', name: 'Rich Veins', desc: 'Ore gain ×3', cost: D(800) },
+    { id: 'slotB', name: 'Quarters II', desc: '+1 Boost Manager slot', cost: D(1500) },
+    { id: 'gyreHeart', name: 'Gyre Heart', desc: 'All production ×2', cost: D(3000) },
+    { id: 'singularitySeed', name: 'Singularity Seed', desc: 'Opens the path to Unify (P4)', cost: D(10000) },
+  ] as ResearchDef[],
+
+  /** Boost Managers (spec §8.7): assign to limited slots. */
+  managers: {
+    baseSlots: 1,
+    defs: [
+      { id: 'kindler', name: 'Kindler', desc: 'Spark ×2 while assigned' },
+      { id: 'weaver', name: 'Weaver', desc: 'Mote gain ×1.5 while assigned' },
+      { id: 'warden', name: 'Warden', desc: 'Autobuyers 2× faster while assigned' },
+      { id: 'seer', name: 'Seer', desc: 'Offline cap ×1.5 while assigned' },
+    ] as ManagerDef[],
+  },
+
+  /** Time Flux (spec §8.6): offline overflow banks as Flux once P3 is reached. */
+  timeflux: {
+    fluxPerOverflowMinute: D(1),
+    warp: { cost: D(60), mult: 2, seconds: 300 },
+    boost: { cost: D(30), mult: D(3), seconds: 120 },
   },
 
   /**

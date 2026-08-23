@@ -74,6 +74,28 @@ export interface GameState {
   challenges: Record<string, number>;
   activeChallenge: string | null;
 
+  // P3 — Converge
+  aeon: Dec;
+  bestAeon: Dec;
+  aeonEver: Dec;
+  converges: number;
+  aeonTree: Record<string, boolean>;
+
+  // Minerals & Research
+  ore: Dec;
+  miners: Record<string, number>; // minerId -> bought
+  research: Record<string, boolean>; // survives Converge; resets at Unify
+
+  // Time Flux
+  flux: Dec;
+  /** Real seconds of ×2 warp left. Sim-relative, so clock changes can't cheat. */
+  warpRemaining: number;
+  /** Real seconds of the Spark flux-boost left. */
+  boostRemaining: number;
+
+  // Boost Managers: assigned ids, at most slot count
+  boostSlots: string[];
+
   // Star Chart: nodeId -> active
   starChart: Record<string, boolean>;
 

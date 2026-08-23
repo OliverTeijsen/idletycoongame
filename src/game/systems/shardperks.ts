@@ -29,7 +29,10 @@ export function keptDimBoosts(state: GameState): number {
   return Math.min(state.dimBoosts, shardUpgradeLevel(state, 'boostEcho'));
 }
 
-/** Seconds between autobuyer passes (Swift Servos halves it per level). */
+/** Seconds between passes: Swift Servos, Overclock research and the Warden halve it. */
 export function autobuyInterval(state: GameState): number {
-  return BAL.automation.baseInterval / Math.pow(2, shardUpgradeLevel(state, 'swiftServos'));
+  let interval = BAL.automation.baseInterval / Math.pow(2, shardUpgradeLevel(state, 'swiftServos'));
+  if (state.research['fastServos']) interval /= 2;
+  if (state.boostSlots.includes('warden')) interval /= 2;
+  return interval;
 }

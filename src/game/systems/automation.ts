@@ -11,6 +11,7 @@
 import { GameState } from '../types';
 import { buyDim, canDimBoost, doDimBoost } from './dimensions';
 import { buyMoteUpgrade } from './motes';
+import { canCollapse, collapseGain, doCollapse } from './prestige';
 import { autobuyInterval } from './shardperks';
 import { starAutobuyTier } from './starchart';
 import { buySparkUpgrade } from './upgrades';
@@ -28,6 +29,7 @@ export const AUTOMATION_IDS = [
   'sparkUpgrades',
   'moteUpgrades',
   'dimBoost',
+  'autoCollapse',
 ] as const;
 export type AutomationId = (typeof AUTOMATION_IDS)[number];
 
@@ -42,6 +44,8 @@ export function automationUnlocked(state: GameState): boolean {
  */
 export function autobuyerAvailable(state: GameState, id: AutomationId): boolean {
   if (!automationUnlocked(state)) return false;
+  // Auto-Collapse is a structural Aeon-tree perk, not a P2 unlock.
+  if (id === 'autoCollapse') return state.aeonTree['autoCollapse'] === true;
   if (state.ascends > 0) return true;
   if (id === 'dim4') return starAutobuyTier(state, 4);
   if (id === 'dim5' || id === 'dim6' || id === 'dim7' || id === 'dim8' || id === 'dimBoost')
@@ -93,6 +97,19 @@ function runAutobuyPass(state: GameState): void {
     canDimBoost(state)
   ) {
     doDimBoost(state);
+  }
+
+  // Auto-Collapse: same rule as a sensible player — collapse when the gain
+  // is a meaningful step up. Never during a challenge run (it would wipe the
+  // run's progress toward the goal).
+  if (
+    autobuyerAvailable(state, 'autoCollapse') &&
+    autobuyerEnabled(state, 'autoCollapse') &&
+    state.activeChallenge === null &&
+    canCollapse(state)
+  ) {
+    const gain = collapseGain(state);
+    if (state.collapses === 0 || gain.gte(state.shards.add(1).mul(0.25))) doCollapse(state);
   }
 
   if (autobuyerAvailable(state, 'sparkUpgrades') && autobuyerEnabled(state, 'sparkUpgrades')) {

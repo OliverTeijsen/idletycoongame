@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -43,6 +43,22 @@ export function defaultState(now: number = Date.now()): GameState {
 
     challenges: {},
     activeChallenge: null,
+
+    aeon: ZERO,
+    bestAeon: ZERO,
+    aeonEver: ZERO,
+    converges: 0,
+    aeonTree: {},
+
+    ore: ZERO,
+    miners: {},
+    research: {},
+
+    flux: ZERO,
+    warpRemaining: 0,
+    boostRemaining: 0,
+
+    boostSlots: [],
 
     starChart: {},
 

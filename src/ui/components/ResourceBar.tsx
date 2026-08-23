@@ -7,6 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { format } from '../../game/numbers';
 import { sparkRate } from '../../game/systems/dimensions';
+import { oreRate } from '../../game/systems/minerals';
 import { moteRate, motesUnlocked } from '../../game/systems/motes';
 import { useGameStore } from '../../state/store';
 import { mono, palette, spacing } from '../theme';
@@ -46,6 +47,14 @@ export function ResourceBar() {
           <Text style={styles.rate}>on Ascend</Text>
         </View>
       )}
+      {game.converges > 0 && (
+        <View style={styles.entry}>
+          <Text style={[styles.value, { color: '#a3e635' }]}>
+            ⛏ {format(game.ore, { notation })}
+          </Text>
+          <Text style={styles.rate}>+{format(oreRate(game), { notation, small: true })}/s</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -53,7 +62,9 @@ export function ResourceBar() {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-around',
+    rowGap: 4,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: palette.line,

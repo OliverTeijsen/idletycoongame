@@ -17,7 +17,10 @@ export function elementAlloc(state: GameState, id: ElementId): number {
 
 export function elementAllocatable(state: GameState, id: ElementId): boolean {
   const def = BAL.elements.defs.find((d) => d.id === id);
-  if (!def || def.locked) return false;
+  if (!def) return false;
+  // Terra (the `locked` def) waits for Minerals — it boosts Ore, which only
+  // exists from Converge onward.
+  if (def.locked && state.converges === 0) return false;
   return elementsUnlocked(state) && state.elements.points >= 1;
 }
 
@@ -72,6 +75,10 @@ export function elementMoteMult(state: GameState): Decimal {
 
 export function elementSpeedMult(state: GameState): Decimal {
   return perPointMult(state, 'aer');
+}
+
+export function elementOreMult(state: GameState): Decimal {
+  return perPointMult(state, 'terra');
 }
 
 /** Lux per-point global × one capstone bonus per element at ≥ capstoneAt. */

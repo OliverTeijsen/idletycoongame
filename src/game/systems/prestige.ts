@@ -8,7 +8,7 @@
  * the Shard upgrade tree.
  */
 import { BAL, ShardUpgradeDef } from '../balance';
-import { Decimal, ZERO, clean } from '../numbers';
+import { D, Decimal, ZERO, clean } from '../numbers';
 import { GameState } from '../types';
 import { freshDims } from './dimensions';
 import { emberStartSpark, keptDimBoosts, moteKeepFraction, shardUpgradeLevel } from './shardperks';
@@ -117,8 +117,74 @@ export function doAscend(state: GameState): boolean {
     points: state.elements.points + BAL.elements.pointsPerAscend,
   };
 
+  // Aeon-tree keep perks are applied around the reset.
+  const keptMotes = state.aeonTree['keepMotes'] ? state.motes.mul(0.5) : ZERO;
+  const keptChart = state.aeonTree['keepChart'] ? { ...state.starChart } : {};
+
   // Clear the P1 layer BEFORE the Layer-0 reset so the shard perks (Ember
   // Bank, Mote Echo, Boost Echo) no longer soften it.
+  state.shards = ZERO;
+  state.bestShards = ZERO;
+  state.shardsEver = ZERO;
+  state.shardUpgrades = {};
+  state.starChart = keptChart;
+  state.activeChallenge = null;
+
+  resetLayer0(state);
+  state.motes = clean(Decimal.max(state.motes, keptMotes));
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// P3 — Converge (spec §7)
+// ---------------------------------------------------------------------------
+
+/** The Converge card reveals once the player has ever qualified or converged. */
+export function convergeUnlocked(state: GameState): boolean {
+  return state.converges > 0 || state.bestPrism.gte(BAL.converge.unlockPrism);
+}
+
+/** Aeon granted by converging now: floor(log2(bestPrism + 1)) — slow on purpose. */
+export function convergeGain(state: GameState): Decimal {
+  if (state.bestPrism.lt(BAL.converge.unlockPrism)) return ZERO;
+  const log2 = state.bestPrism.add(1).log2();
+  return clean(D(Math.floor(log2)));
+}
+
+export function canConverge(state: GameState): boolean {
+  return convergeGain(state).gte(1);
+}
+
+/**
+ * Perform a Converge. Resets everything Ascend resets PLUS the P2 layer:
+ * Prism (balance, best, earned), the Prism grid and the Elements allocation
+ * (points refund to the pool) — and, per §8.3, Ore and Miners. Keeps: Aeon
+ * & tree, Research, challenge completions, element points, lifetime stats.
+ */
+export function doConverge(state: GameState): boolean {
+  if (!canConverge(state)) return false;
+  const gain = convergeGain(state);
+
+  state.aeon = clean(state.aeon.add(gain));
+  state.aeonEver = clean(state.aeonEver.add(gain));
+  if (state.aeon.gt(state.bestAeon)) state.bestAeon = state.aeon;
+  state.converges += 1;
+
+  // P2 layer gone.
+  state.prism = ZERO;
+  state.bestPrism = ZERO;
+  state.prismEver = ZERO;
+  state.prismGrid = {};
+
+  // Elements allocation refunds to the pool; the points survive.
+  const refund = Object.values(state.elements.alloc).reduce((a, b) => a + b, 0);
+  state.elements = { ...state.elements, points: state.elements.points + refund, alloc: {} };
+
+  // Minerals reset here (and only here / Unify) — research survives.
+  state.ore = ZERO;
+  state.miners = {};
+
+  // P1 layer + Layer 0, with NO keep perks (they were all cleared).
   state.shards = ZERO;
   state.bestShards = ZERO;
   state.shardsEver = ZERO;
@@ -127,6 +193,25 @@ export function doAscend(state: GameState): boolean {
   state.activeChallenge = null;
 
   resetLayer0(state);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Aeon tree (P3's own tree)
+// ---------------------------------------------------------------------------
+
+export function aeonNodeOwned(state: GameState, id: string): boolean {
+  return state.aeonTree[id] === true;
+}
+
+/** Buy a one-time Aeon tree node. Returns success. */
+export function buyAeonNode(state: GameState, id: string): boolean {
+  const def = BAL.aeonTree.find((n) => n.id === id);
+  if (!def) return false;
+  if (aeonNodeOwned(state, id)) return false;
+  if (state.aeon.lt(def.cost)) return false;
+  state.aeon = state.aeon.sub(def.cost);
+  state.aeonTree = { ...state.aeonTree, [id]: true };
   return true;
 }
 

@@ -1,28 +1,37 @@
 /**
- * Offline progress (spec §5).
+ * Offline progress (spec §5) + Time Flux overflow (spec §8.6).
  *
  * The dimension chain has feedback (tiers feed tiers), so closed-form isn't
  * exact; we step `tick()` in `chunkSteps` coarse chunks instead. Elapsed time
- * is clamped to [0, cap] — a clock set backwards grants nothing, and time
- * beyond the cap will roll into Flux once Time Flux exists (Phase 5).
+ * is clamped to [0, cap] — a clock set backwards grants nothing — and once
+ * Time Flux is unlocked (P3), time beyond the cap banks as Flux instead of
+ * being lost.
  */
 import { BAL } from './balance';
-import { Decimal } from './numbers';
+import { Decimal, clean } from './numbers';
 import { tick } from './loop';
+import { seerCapMult } from './systems/managers';
 import { starOfflineCapHours } from './systems/starchart';
+import { fluxFromOverflow } from './systems/timeflux';
 import { GameState } from './types';
 
 export interface OfflineSummary {
   /** Simulated seconds (after cap). */
   seconds: number;
-  /** Seconds beyond the cap (future Flux). */
+  /** Seconds beyond the cap. */
   overflowSeconds: number;
   sparkGained: Decimal;
   motesGained: Decimal;
+  oreGained: Decimal;
+  fluxGained: Decimal;
 }
 
 export function offlineCapSeconds(state: GameState): number {
-  return (BAL.offline.baseCapH + starOfflineCapHours(state)) * 3600;
+  let hours = BAL.offline.baseCapH + starOfflineCapHours(state);
+  // Aeon: +1h per lifetime Aeon (clamped — a tampered save must not overflow).
+  hours += BAL.converge.offlineCapHPer * Math.min(1000, Math.max(0, state.aeonEver.toNumber()));
+  if (state.research['deepClock']) hours += 4;
+  return hours * 3600 * seerCapMult(state);
 }
 
 /**
@@ -37,14 +46,21 @@ export function applyOffline(state: GameState, elapsedSeconds: number): OfflineS
 
   const sparkBefore = state.spark;
   const motesBefore = state.motes;
+  const oreBefore = state.ore;
 
   const step = clamped / BAL.offline.chunkSteps;
   for (let i = 0; i < BAL.offline.chunkSteps; i++) tick(state, step);
 
+  const overflowSeconds = Math.max(0, elapsedSeconds - cap);
+  const fluxGained = fluxFromOverflow(state, overflowSeconds);
+  if (fluxGained.gt(0)) state.flux = clean(state.flux.add(fluxGained));
+
   return {
     seconds: clamped,
-    overflowSeconds: Math.max(0, elapsedSeconds - cap),
+    overflowSeconds,
     sparkGained: state.spark.sub(sparkBefore),
     motesGained: state.motes.sub(motesBefore),
+    oreGained: state.ore.sub(oreBefore),
+    fluxGained,
   };
 }

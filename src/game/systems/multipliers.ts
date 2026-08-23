@@ -34,6 +34,8 @@ import {
   challengeTierMult,
 } from './challengeperks';
 import { elementGlobalMult, elementSparkMult, elementSpeedMult } from './elements';
+import { kindlerMult } from './managers';
+import { fluxBoostMult } from './timeflux';
 
 /**
  * Shard multiplier: softcap(1 + 0.25·shardsEver). Computed every time — never
@@ -72,6 +74,11 @@ function momentumMult(state: GameState): Decimal {
   return cleanMul(D(1.5).pow(state.prismGrid['momentum'] ?? 0));
 }
 
+/** Research contribution to the global multiplier (Gyre Heart). Inline to keep this leaf-clean. */
+function researchGlobal(state: GameState): Decimal {
+  return state.research['gyreHeart'] ? D(2) : ONE;
+}
+
 /** Global production multiplier applied to every tier's output. */
 export function globalMult(state: GameState): Decimal {
   // Dim challenge: the global multiplier is forced to ×1 during the run.
@@ -80,10 +87,23 @@ export function globalMult(state: GameState): Decimal {
   return cleanMul(
     starGlobalMult(state)
       .mul(elementGlobalMult(state))
+      .mul(researchGlobal(state))
       .mul(shardMult(state))
       .mul(prismMult(state))
       .mul(amplifyMult(state)),
   );
+}
+
+/**
+ * Aeon multiplier on ALL tiers: tierMultPer^aeonEver × Deep Engine. Lifetime
+ * Aeon, same never-punish-spending rule as shards/prism. Exponent clamped —
+ * aeon grows log2-slow, but a tampered save must not overflow pow().
+ */
+export function aeonMult(state: GameState): Decimal {
+  const n = Math.min(1e4, Math.max(0, state.aeonEver.toNumber()));
+  let m = BAL.converge.tierMultPer.pow(n);
+  if (state.aeonTree['dimPower']) m = m.mul(2);
+  return cleanMul(m);
 }
 
 /**
@@ -121,16 +141,19 @@ export function sparkMult(state: GameState): Decimal {
   }
 
   m = m.mul(elementSparkMult(state));
+  m = m.mul(kindlerMult(state));
+  m = m.mul(fluxBoostMult(state));
 
   return cleanMul(m);
 }
 
-/** Per-tier multiplier (1-indexed). Boosts, Ignition, Cascade, stars, Solitary reward. */
+/** Per-tier multiplier (1-indexed). Boosts, Ignition, Cascade, stars, Solitary, Aeon. */
 export function tierMult(state: GameState, tier: number): Decimal {
   let m = BAL.dimBoost.mult
     .pow(state.dimBoosts)
     .mul(starTierMult(state, tier))
-    .mul(challengeTierMult(state));
+    .mul(challengeTierMult(state))
+    .mul(aeonMult(state));
 
   if (tier === 1) {
     const ignition = sparkUpgradeDef('ignition');
@@ -157,9 +180,13 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
     { label: 'Star Chart', value: starGlobalMult(state) },
     { label: 'Elements', value: elementGlobalMult(state) },
     { label: 'Challenge rewards', value: challengeTierMult(state) },
+    { label: 'Research', value: researchGlobal(state) },
     { label: 'Shards', value: shardMult(state) },
     { label: 'Prism', value: prismMult(state) },
     { label: 'Prism grid', value: amplifyMult(state) },
+    { label: 'Aeon', value: aeonMult(state) },
+    { label: 'Managers', value: kindlerMult(state) },
+    { label: 'Flux boost', value: fluxBoostMult(state) },
     { label: 'Global (total)', value: globalMult(state) },
   ];
 }

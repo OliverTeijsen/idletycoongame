@@ -16,13 +16,18 @@ import { enterChallenge, exitChallenge } from '../game/systems/challenges';
 import { buyDim, doDimBoost } from '../game/systems/dimensions';
 import { ElementId } from '../game/balance';
 import { allocateElement, respecElements } from '../game/systems/elements';
+import { toggleManager } from '../game/systems/managers';
+import { buyMiner, buyResearch } from '../game/systems/minerals';
 import { buyMoteUpgrade } from '../game/systems/motes';
 import {
+  buyAeonNode,
   buyPrismUpgrade,
   buyShardUpgrade,
   doAscend,
   doCollapse,
+  doConverge,
 } from '../game/systems/prestige';
+import { startFluxBoost, startWarp } from '../game/systems/timeflux';
 import { buyStarNode, respecStarChart } from '../game/systems/starchart';
 import { buySparkUpgrade, tapPower } from '../game/systems/upgrades';
 import { BuyAmount, GameOptions, GameState } from '../game/types';
@@ -42,6 +47,13 @@ interface GameStore {
   dimBoost(): void;
   collapse(): void;
   ascend(): void;
+  converge(): void;
+  buyAeonNode(id: string): void;
+  buyMiner(id: string): void;
+  buyResearch(id: string): void;
+  toggleManager(id: string): void;
+  startWarp(): void;
+  startFluxBoost(): void;
   buyPrismUpgrade(id: string): void;
   allocateElement(id: ElementId): void;
   respecElements(): void;
@@ -124,6 +136,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ game: republish(game) });
       get().save();
     }
+  },
+
+  converge() {
+    const game = get().game;
+    if (doConverge(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyAeonNode(id) {
+    const game = get().game;
+    if (buyAeonNode(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyMiner(id) {
+    const game = get().game;
+    if (buyMiner(game, id)) set({ game: republish(game) });
+  },
+
+  buyResearch(id) {
+    const game = get().game;
+    if (buyResearch(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  toggleManager(id) {
+    const game = get().game;
+    if (toggleManager(game, id)) set({ game: republish(game) });
+  },
+
+  startWarp() {
+    const game = get().game;
+    if (startWarp(game)) set({ game: republish(game) });
+  },
+
+  startFluxBoost() {
+    const game = get().game;
+    if (startFluxBoost(game)) set({ game: republish(game) });
   },
 
   buyPrismUpgrade(id) {

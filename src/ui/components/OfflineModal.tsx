@@ -28,6 +28,16 @@ export function OfflineModal() {
               ◦ +{format(summary.motesGained, { notation })} Motes
             </Text>
           )}
+          {summary.oreGained.gt(0) && (
+            <Text style={[styles.gain, { color: '#a3e635' }]}>
+              ⛏ +{format(summary.oreGained, { notation })} Ore
+            </Text>
+          )}
+          {summary.fluxGained.gt(0) && (
+            <Text style={[styles.gain, { color: palette.aeon }]}>
+              ⧗ +{format(summary.fluxGained, { notation })} Flux (overflow)
+            </Text>
+          )}
           {summary.sparkGained.lte(0) && summary.motesGained.lte(0) && (
             <Text style={styles.gainNone}>Your orbiters were idle — buy one to earn offline.</Text>
           )}

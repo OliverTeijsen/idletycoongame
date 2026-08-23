@@ -9,6 +9,7 @@ import { D, Decimal, ONE, ZERO, clean, softcap } from '../numbers';
 import { GameState } from '../types';
 import { challengeActive, challengeMoteMult } from './challengeperks';
 import { elementMoteMult } from './elements';
+import { weaverMult } from './managers';
 import { starMoteMult } from './starchart';
 import { upgradeCost, upgradeMaxed, upgradeMult } from './upgrades';
 
@@ -44,7 +45,8 @@ export function moteRate(state: GameState): Decimal {
       .mul(starMoteMult(state))
       .mul(elementMoteMult(state))
       .mul(abundance)
-      .mul(challengeMoteMult(state)),
+      .mul(challengeMoteMult(state))
+      .mul(weaverMult(state)),
   );
 }
 

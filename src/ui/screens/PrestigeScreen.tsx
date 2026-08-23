@@ -5,11 +5,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BAL } from '../../game/balance';
 import { format, formatWhole } from '../../game/numbers';
 import {
+  aeonNodeOwned,
   ascendGain,
   ascendUnlocked,
   canAscend,
   canCollapse,
+  canConverge,
   collapseGain,
+  convergeGain,
+  convergeUnlocked,
   prismUpgradeCost,
   prismUpgradeLevel,
   shardUpgradeCost,
@@ -25,8 +29,11 @@ export function PrestigeScreen() {
   const ascend = useGameStore((s) => s.ascend);
   const buyShardUpgrade = useGameStore((s) => s.buyShardUpgrade);
   const buyPrismUpgrade = useGameStore((s) => s.buyPrismUpgrade);
+  const converge = useGameStore((s) => s.converge);
+  const buyAeonNode = useGameStore((s) => s.buyAeonNode);
   const [confirming, setConfirming] = useState(false);
   const [confirmingAscend, setConfirmingAscend] = useState(false);
+  const [confirmingConverge, setConfirmingConverge] = useState(false);
   const notation = game.options.notation;
 
   const gain = collapseGain(game);
@@ -53,6 +60,20 @@ export function PrestigeScreen() {
     }
     setConfirmingAscend(false);
     ascend();
+  };
+
+  const showConverge = convergeUnlocked(game);
+  const cGain = convergeGain(game);
+  const cReady = canConverge(game);
+
+  const onConvergePress = () => {
+    if (!cReady) return;
+    if (game.options.confirmResets && !confirmingConverge) {
+      setConfirmingConverge(true);
+      return;
+    }
+    setConfirmingConverge(false);
+    converge();
   };
 
   return (
@@ -182,14 +203,79 @@ export function PrestigeScreen() {
         </View>
       )}
 
-      {game.ascends > 0 && (
-        <View style={styles.teaser}>
-          <Text style={[styles.teaserTitle, { color: palette.aeon }]}>🔒 CONVERGE</Text>
-          <Text style={styles.teaserText}>
-            The third layer awakens at ▲ 30 Prism — Minerals, Research and Boost Managers await.
-          </Text>
-        </View>
-      )}
+      {game.ascends > 0 &&
+        (showConverge ? (
+          <>
+            <View style={[styles.card, styles.convergeCard]}>
+              <Text style={[styles.cardTitle, { color: palette.aeon }]}>CONVERGE</Text>
+              <Text style={styles.gain}>
+                ✧ +{formatWhole(cGain, notation)}{' '}
+                <Text style={[styles.gainLabel, { color: palette.aeon }]}>Aeon</Text>
+              </Text>
+              <Text style={styles.detail}>
+                best Prism this cycle: ▲ {formatWhole(game.bestPrism, notation)} · aeon =
+                log2(prism)
+              </Text>
+              <Text style={styles.resets}>
+                Resets: everything Ascend does, PLUS Prism & grid, Element allocation, Ore &
+                Miners
+              </Text>
+              <Text style={styles.keeps}>Keeps: Aeon & tree, Research, element points, trial rewards</Text>
+              <Pressable
+                onPress={onConvergePress}
+                disabled={!cReady}
+                style={[
+                  styles.button,
+                  { backgroundColor: palette.aeon },
+                  !cReady && styles.buttonLocked,
+                  confirmingConverge && styles.buttonConfirm,
+                ]}
+              >
+                <Text style={[styles.buttonText, confirmingConverge && styles.buttonConfirmText]}>
+                  {!cReady
+                    ? `reach ▲ ${formatWhole(BAL.converge.unlockPrism, notation)} Prism first`
+                    : confirmingConverge
+                      ? 'TAP AGAIN TO CONFIRM'
+                      : 'CONVERGE THE RINGS'}
+                </Text>
+              </Pressable>
+              {confirmingConverge && (
+                <Pressable onPress={() => setConfirmingConverge(false)}>
+                  <Text style={styles.cancel}>cancel</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {game.converges > 0 && (
+              <>
+                <Text style={styles.section}>AEON TREE · ✧ {formatWhole(game.aeon, notation)}</Text>
+                {BAL.aeonTree.map((node) => {
+                  const owned = aeonNodeOwned(game, node.id);
+                  return (
+                    <Row
+                      key={node.id}
+                      color={palette.aeon}
+                      title={node.name}
+                      subtext={node.desc}
+                      costText={`✧ ${formatWhole(node.cost, notation)}`}
+                      affordable={game.aeon.gte(node.cost)}
+                      maxed={owned}
+                      onBuy={() => buyAeonNode(node.id)}
+                    />
+                  );
+                })}
+              </>
+            )}
+          </>
+        ) : (
+          <View style={styles.teaser}>
+            <Text style={[styles.teaserTitle, { color: palette.aeon }]}>🔒 CONVERGE</Text>
+            <Text style={styles.teaserText}>
+              The third layer awakens at ▲ {formatWhole(BAL.converge.unlockPrism, notation)} Prism
+              — Minerals, Research and Boost Managers await.
+            </Text>
+          </View>
+        ))}
     </ScrollView>
   );
 }
@@ -205,6 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ascendCard: { borderColor: palette.prism, backgroundColor: '#1c1020', marginTop: spacing.lg },
+  convergeCard: { borderColor: palette.aeon, backgroundColor: '#0d1a24', marginTop: spacing.lg },
   cardTitle: { color: palette.shard, fontSize: 12, fontWeight: '800', letterSpacing: 3 },
   gain: { color: palette.ink, fontSize: 26, fontWeight: '800', marginTop: spacing.sm, ...mono },
   gainLabel: { color: palette.shard, fontSize: 14 },

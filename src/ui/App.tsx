@@ -13,6 +13,7 @@ import { format } from '../game/numbers';
 import { automationUnlocked } from '../game/systems/automation';
 import { challengesUnlocked } from '../game/systems/challenges';
 import { elementsUnlocked } from '../game/systems/elements';
+import { mineralsUnlocked } from '../game/systems/minerals';
 import { motesUnlocked } from '../game/systems/motes';
 import { collapseUnlocked } from '../game/systems/prestige';
 import { starChartUnlocked } from '../game/systems/starchart';
@@ -23,6 +24,7 @@ import { AutoScreen } from './screens/AutoScreen';
 import { ChallengesScreen } from './screens/ChallengesScreen';
 import { CoreScreen } from './screens/CoreScreen';
 import { ElementsScreen } from './screens/ElementsScreen';
+import { MineScreen } from './screens/MineScreen';
 import { MotesScreen } from './screens/MotesScreen';
 import { OptionsScreen } from './screens/OptionsScreen';
 import { PrestigeScreen } from './screens/PrestigeScreen';
@@ -36,6 +38,7 @@ type TabId =
   | 'chart'
   | 'elements'
   | 'challenges'
+  | 'mine'
   | 'auto'
   | 'options';
 
@@ -79,6 +82,7 @@ export default function App() {
   const showChart = starChartUnlocked(game);
   const showElements = elementsUnlocked(game);
   const showChallenges = challengesUnlocked(game);
+  const showMine = mineralsUnlocked(game);
   const showAuto = automationUnlocked(game);
 
   // A tab can disappear on hard reset — fall back to Core.
@@ -88,6 +92,7 @@ export default function App() {
     (tab === 'chart' && !showChart) ||
     (tab === 'elements' && !showElements) ||
     (tab === 'challenges' && !showChallenges) ||
+    (tab === 'mine' && !showMine) ||
     (tab === 'auto' && !showAuto)
       ? 'core'
       : tab;
@@ -105,6 +110,7 @@ export default function App() {
             {activeTab === 'chart' && <StarChartScreen />}
             {activeTab === 'elements' && <ElementsScreen />}
             {activeTab === 'challenges' && <ChallengesScreen />}
+            {activeTab === 'mine' && <MineScreen />}
             {activeTab === 'auto' && <AutoScreen />}
             {activeTab === 'options' && <OptionsScreen />}
           </View>
@@ -124,6 +130,7 @@ export default function App() {
             {showChart && <Tab label="CHART" active={activeTab === 'chart'} onPress={() => setTab('chart')} />}
             {showElements && <Tab label="ELEMENTS" active={activeTab === 'elements'} onPress={() => setTab('elements')} />}
             {showChallenges && <Tab label="TRIALS" active={activeTab === 'challenges'} onPress={() => setTab('challenges')} />}
+            {showMine && <Tab label="MINE" active={activeTab === 'mine'} onPress={() => setTab('mine')} />}
             {showAuto && <Tab label="AUTO" active={activeTab === 'auto'} onPress={() => setTab('auto')} />}
             <Tab label="OPTIONS" active={activeTab === 'options'} onPress={() => setTab('options')} />
           </ScrollView>

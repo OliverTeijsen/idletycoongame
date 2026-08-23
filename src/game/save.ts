@@ -55,6 +55,18 @@ interface SavedGame {
   elements: { points: number; alloc: Record<string, number>; progress: number };
   challenges: Record<string, number>;
   activeChallenge: string | null;
+  aeon: string;
+  bestAeon: string;
+  aeonEver: string;
+  converges: number;
+  aeonTree: Record<string, boolean>;
+  ore: string;
+  miners: Record<string, number>;
+  research: Record<string, boolean>;
+  flux: string;
+  warpRemaining: number;
+  boostRemaining: number;
+  boostSlots: string[];
   options: GameOptions;
 }
 
@@ -63,10 +75,11 @@ interface SavedGame {
 // ---------------------------------------------------------------------------
 
 const migrations: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
-  // v1 → v2 (Phase 3) and v2 → v3 (Phase 4) added only new fields;
-  // default-filling below IS the migration for purely-additive changes.
+  // v1→v2 (Phase 3), v2→v3 (Phase 4) and v3→v4 (Phase 5) added only new
+  // fields; default-filling below IS the migration for additive changes.
   1: (old) => old,
   2: (old) => old,
+  3: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -123,6 +136,20 @@ const KNOWN_STAR_NODES = new Set(BAL.starChart.map((n) => n.id));
 const KNOWN_AUTOMATION = new Set(AUTOMATION_IDS as readonly string[]);
 const KNOWN_CHALLENGES = new Set(BAL.challenges.defs.map((c) => c.id));
 const KNOWN_ELEMENTS = new Set(BAL.elements.defs.map((e) => e.id));
+const KNOWN_AEON_NODES = new Set(BAL.aeonTree.map((n) => n.id));
+const KNOWN_RESEARCH = new Set(BAL.research.map((r) => r.id));
+const KNOWN_MINERS = BAL.miners.map((m) => ({ id: m.id, maxLevel: null as number | null }));
+const KNOWN_MANAGERS = new Set(BAL.managers.defs.map((m) => m.id));
+
+/** Assigned managers: known ids, de-duplicated, capped at the possible max. */
+function slotsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry === 'string' && KNOWN_MANAGERS.has(entry)) seen.add(entry);
+  }
+  return [...seen].slice(0, BAL.managers.defs.length);
+}
 
 /** Challenge completions: known ids, tiers clamped to each maxTier. */
 function challengesOf(value: unknown): Record<string, number> {
@@ -195,6 +222,18 @@ export function serializeState(state: GameState): string {
     elements: { ...state.elements, alloc: { ...state.elements.alloc } },
     challenges: { ...state.challenges },
     activeChallenge: state.activeChallenge,
+    aeon: decToString(state.aeon),
+    bestAeon: decToString(state.bestAeon),
+    aeonEver: decToString(state.aeonEver),
+    converges: state.converges,
+    aeonTree: { ...state.aeonTree },
+    ore: decToString(state.ore),
+    miners: { ...state.miners },
+    research: { ...state.research },
+    flux: decToString(state.flux),
+    warpRemaining: state.warpRemaining,
+    boostRemaining: state.boostRemaining,
+    boostSlots: [...state.boostSlots],
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -288,6 +327,21 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
       typeof saved.activeChallenge === 'string' && KNOWN_CHALLENGES.has(saved.activeChallenge)
         ? saved.activeChallenge
         : null,
+
+    aeon: decFromString(saved.aeon ?? '0'),
+    bestAeon: decFromString(saved.bestAeon ?? '0'),
+    aeonEver: decFromString(saved.aeonEver ?? '0'),
+    converges: int(saved.converges, 0, 0),
+    aeonTree: activeSetOf(saved.aeonTree, KNOWN_AEON_NODES),
+    ore: decFromString(saved.ore ?? '0'),
+    miners: levelsOf(saved.miners, KNOWN_MINERS),
+    research: activeSetOf(saved.research, KNOWN_RESEARCH),
+    flux: decFromString(saved.flux ?? '0'),
+    // Timed boosts: clamp to their maximum plausible span so a tampered save
+    // cannot smuggle in a year of warp.
+    warpRemaining: Math.min(num(saved.warpRemaining, 0, 0), 86400),
+    boostRemaining: Math.min(num(saved.boostRemaining, 0, 0), 86400),
+    boostSlots: slotsOf(saved.boostSlots),
 
     options: {
       notation: notationOf(rawOptions.notation),
