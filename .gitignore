@@ -3,7 +3,7 @@ coverage/
 *.log
 .DS_Store
 
-# Expo / native (from phase 2 onwards)
+# Expo / native
 .expo/
 dist/
 web-build/

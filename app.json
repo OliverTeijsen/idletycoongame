@@ -1,32 +1,22 @@
 {
   "expo": {
-    "name": "Frietkot Imperium",
-    "slug": "frietkot-imperium",
+    "name": "GYRE",
+    "slug": "gyre",
     "owner": "oha-studios",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#140F0A",
-    "primaryColor": "#F2B33D",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "backgroundColor": "#071011",
+    "primaryColor": "#ffbf5c",
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "bundleIdentifier": "com.frietkot.imperium",
+      "bundleIdentifier": "com.ohastudios.gyre",
       "supportsTablet": false,
       "requireFullScreen": true
     },
     "android": {
-      "package": "com.frietkot.imperium"
+      "package": "com.ohastudios.gyre"
     },
-    "plugins": [
-      "expo-status-bar",
-      "expo-localization"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "e939f12a-3f4e-4d27-9df6-ce3f269f84ae"
-      }
-    }
+    "plugins": ["expo-status-bar"]
   }
 }

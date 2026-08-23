@@ -1,128 +1,130 @@
+/**
+ * App root: drives the fixed-timestep loop, autosave, background/resume
+ * handling, and the progressive tab bar (spec §5, §11, §14).
+ */
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, ScrollView, StyleSheet, Text, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-  initialWindowMetrics,
-} from 'react-native-safe-area-context';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { BUSINESSES } from '../core/businesses';
-import { useGameStore } from '../store/gameStore';
-import { BottomBar } from './components/BottomBar';
-import { BusinessRow } from './components/BusinessRow';
-import { BuyAmountToggle } from './components/BuyAmountToggle';
-import { AchievementsModal } from './components/AchievementsModal';
+import { BAL } from '../game/balance';
+import { createLoop } from '../game/loop';
+import { format } from '../game/numbers';
+import { motesUnlocked } from '../game/systems/motes';
+import { useGameStore } from '../state/store';
 import { OfflineModal } from './components/OfflineModal';
-import { PerksModal } from './components/PerksModal';
-import { PrestigeModal } from './components/PrestigeModal';
-import { StreakModal } from './components/StreakModal';
-import { TopBar } from './components/TopBar';
-import { AchievementToast } from './juice/AchievementToast';
-import { FloatingPayouts } from './juice/FloatingPayouts';
-import { GoldenFries } from './juice/GoldenFries';
-import { colors, spacing, type } from './theme';
+import { ResourceBar } from './components/ResourceBar';
+import { CoreScreen } from './screens/CoreScreen';
+import { MotesScreen } from './screens/MotesScreen';
+import { OptionsScreen } from './screens/OptionsScreen';
+import { MAX_CONTENT_WIDTH, palette, spacing } from './theme';
 
-/** Simulation tick. 100ms is smooth for progress bars and cheap on battery. */
-const TICK_MS = 100;
+type TabId = 'core' | 'motes' | 'options';
 
-export default function App(): React.JSX.Element {
-  const hydrated = useGameStore((s) => s.hydrated);
-  const hydrate = useGameStore((s) => s.hydrate);
-  const tick = useGameStore((s) => s.tick);
-  const onBackground = useGameStore((s) => s.onBackground);
-  const onForeground = useGameStore((s) => s.onForeground);
+export default function App() {
+  const [tab, setTab] = useState<TabId>('core');
 
-  const lastTick = useRef(Date.now());
-
+  // Init once: load save, apply offline progress.
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    useGameStore.getState().init();
+  }, []);
 
-  // Simulation loop. React Native pauses timers in the background, so long
-  // absences are paid by the offline calculation instead — see the AppState
-  // handler below, which re-anchors `lastTick` so the gap is never paid twice.
+  // The simulation loop. rAF on web and native (Expo provides it); the loop
+  // itself is the accumulator from game/loop.ts, so rendering rate never
+  // changes simulation results.
   useEffect(() => {
-    lastTick.current = Date.now();
-    const id = setInterval(() => {
-      const now = Date.now();
-      const dt = (now - lastTick.current) / 1000;
-      lastTick.current = now;
-      tick(dt);
-    }, TICK_MS);
-    return () => clearInterval(id);
-  }, [tick]);
-
-  useEffect(() => {
-    const handler = (next: AppStateStatus) => {
-      if (next === 'active') {
-        lastTick.current = Date.now();
-        onForeground();
-      } else {
-        onBackground();
-      }
+    const loop = createLoop((dt) => useGameStore.getState().tick(dt));
+    let raf = 0;
+    const frame = (t: number) => {
+      loop.advance(t);
+      raf = requestAnimationFrame(frame);
     };
-    const sub = AppState.addEventListener('change', handler);
-    return () => sub.remove();
-  }, [onBackground, onForeground]);
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
-  // initialMetrics avoids a blank first frame while insets are measured.
+  // Autosave every 10s + on background/blur.
+  useEffect(() => {
+    const interval = setInterval(() => useGameStore.getState().save(), BAL.autosaveSeconds * 1000);
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'background' || next === 'inactive') useGameStore.getState().save();
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, []);
+
+  const game = useGameStore((s) => s.game);
+  const showMotes = motesUnlocked(game);
+
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <StatusBar style="light" />
+    <SafeAreaProvider>
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-        {hydrated ? (
-          <>
-            <TopBar />
-            <BuyAmountToggle />
-            <ScrollView
-              style={styles.list}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {BUSINESSES.map((def) => (
-                <BusinessRow key={def.id} id={def.id} />
-              ))}
-            </ScrollView>
-            <BottomBar />
-            {/* Overlays last so they paint above the list without affecting layout. */}
-            <FloatingPayouts />
-            <GoldenFries />
-            <AchievementToast />
-            {/* StreakModal holds itself back while the offline payout is up. */}
-            <OfflineModal />
-            <StreakModal />
-            <PrestigeModal />
-            {/* After PrestigeModal: confirming a sale opens this one, and the
-                skill tree is what the player is meant to be looking at next. */}
-            <PerksModal />
-            <AchievementsModal />
-          </>
-        ) : (
-          <View style={styles.loading}>
-            <Text style={type.title}>🍟</Text>
+        <StatusBar style="light" />
+        <View style={styles.column}>
+          <ResourceBar />
+          <View style={styles.content}>
+            {tab === 'core' && <CoreScreen />}
+            {tab === 'motes' && (showMotes ? <MotesScreen /> : <CoreScreen />)}
+            {tab === 'options' && <OptionsScreen />}
           </View>
-        )}
+          <View style={styles.tabBar}>
+            <Tab label="CORE" active={tab === 'core'} onPress={() => setTab('core')} />
+            {showMotes && <Tab label="MOTES" active={tab === 'motes'} onPress={() => setTab('motes')} />}
+            <Tab label="COLLAPSE" locked lockHint={`✦ ${format(BAL.collapse.unlockSpark)}`} />
+            <Tab label="OPTIONS" active={tab === 'options'} onPress={() => setTab('options')} />
+          </View>
+        </View>
+        <OfflineModal />
       </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
+function Tab({
+  label,
+  active,
+  locked,
+  lockHint,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  locked?: boolean;
+  lockHint?: string;
+  onPress?(): void;
+}) {
+  return (
+    <Pressable style={styles.tab} onPress={onPress} disabled={locked}>
+      <Text style={[styles.tabText, active && styles.tabActive, locked && styles.tabLocked]}>
+        {locked ? `🔒 ${label}` : label}
+      </Text>
+      {locked && lockHint && <Text style={styles.lockHint}>{lockHint}</Text>}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  root: {
+  root: { flex: 1, backgroundColor: palette.bgDeep },
+  column: {
     flex: 1,
-    backgroundColor: colors.bg,
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    backgroundColor: palette.bg,
   },
-  list: {
-    flex: 1,
+  content: { flex: 1 },
+  tabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    backgroundColor: palette.bgDeep,
+    paddingVertical: spacing.sm,
   },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-  },
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  tabText: { color: palette.dim, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  tabActive: { color: palette.core },
+  tabLocked: { opacity: 0.5 },
+  lockHint: { color: palette.dim, fontSize: 9, marginTop: 1, opacity: 0.7 },
 });
