@@ -47,6 +47,14 @@ interface SavedGame {
   shardUpgrades: Record<string, number>;
   starChart: Record<string, boolean>;
   automation: Record<string, boolean>;
+  prism: string;
+  bestPrism: string;
+  prismEver: string;
+  ascends: number;
+  prismGrid: Record<string, number>;
+  elements: { points: number; alloc: Record<string, number>; progress: number };
+  challenges: Record<string, number>;
+  activeChallenge: string | null;
   options: GameOptions;
 }
 
@@ -55,9 +63,10 @@ interface SavedGame {
 // ---------------------------------------------------------------------------
 
 const migrations: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
-  // v1 → v2 (Phase 3) added only new fields; default-filling below IS the
-  // migration for purely-additive changes.
+  // v1 → v2 (Phase 3) and v2 → v3 (Phase 4) added only new fields;
+  // default-filling below IS the migration for purely-additive changes.
   1: (old) => old,
+  2: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -112,6 +121,34 @@ function togglesOf(value: unknown, knownIds: Set<string>): Record<string, boolea
 
 const KNOWN_STAR_NODES = new Set(BAL.starChart.map((n) => n.id));
 const KNOWN_AUTOMATION = new Set(AUTOMATION_IDS as readonly string[]);
+const KNOWN_CHALLENGES = new Set(BAL.challenges.defs.map((c) => c.id));
+const KNOWN_ELEMENTS = new Set(BAL.elements.defs.map((e) => e.id));
+
+/** Challenge completions: known ids, tiers clamped to each maxTier. */
+function challengesOf(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return out;
+  const raw = value as Record<string, unknown>;
+  for (const def of BAL.challenges.defs) {
+    const tiers = int(raw[def.id], 0, 0);
+    if (tiers > 0) out[def.id] = Math.min(tiers, def.maxTier);
+  }
+  return out;
+}
+
+function elementsOf(value: unknown): { points: number; alloc: Record<string, number>; progress: number } {
+  const fallback = { points: 0, alloc: {}, progress: 0 };
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return fallback;
+  const raw = value as Record<string, unknown>;
+  const alloc: Record<string, number> = {};
+  if (typeof raw.alloc === 'object' && raw.alloc !== null && !Array.isArray(raw.alloc)) {
+    for (const [id, v] of Object.entries(raw.alloc as Record<string, unknown>)) {
+      const n = int(v, 0, 0);
+      if (n > 0 && (KNOWN_ELEMENTS as Set<string>).has(id)) alloc[id] = n;
+    }
+  }
+  return { points: int(raw.points, 0, 0), alloc, progress: num(raw.progress, 0, 0) };
+}
 
 function notationOf(value: unknown): NotationMode {
   return value === 'scientific' || value === 'engineering' || value === 'standard'
@@ -150,6 +187,14 @@ export function serializeState(state: GameState): string {
     shardUpgrades: { ...state.shardUpgrades },
     starChart: { ...state.starChart },
     automation: { ...state.automation },
+    prism: decToString(state.prism),
+    bestPrism: decToString(state.bestPrism),
+    prismEver: decToString(state.prismEver),
+    ascends: state.ascends,
+    prismGrid: { ...state.prismGrid },
+    elements: { ...state.elements, alloc: { ...state.elements.alloc } },
+    challenges: { ...state.challenges },
+    activeChallenge: state.activeChallenge,
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -231,6 +276,18 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     starChart: activeSetOf(saved.starChart, KNOWN_STAR_NODES),
     automation: togglesOf(saved.automation, KNOWN_AUTOMATION),
     autobuyTimer: 0,
+
+    prism: decFromString(saved.prism ?? '0'),
+    bestPrism: decFromString(saved.bestPrism ?? '0'),
+    prismEver: decFromString(saved.prismEver ?? '0'),
+    ascends: int(saved.ascends, 0, 0),
+    prismGrid: levelsOf(saved.prismGrid, BAL.prismGrid),
+    elements: elementsOf(saved.elements),
+    challenges: challengesOf(saved.challenges),
+    activeChallenge:
+      typeof saved.activeChallenge === 'string' && KNOWN_CHALLENGES.has(saved.activeChallenge)
+        ? saved.activeChallenge
+        : null,
 
     options: {
       notation: notationOf(rawOptions.notation),

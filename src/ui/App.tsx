@@ -3,14 +3,16 @@
  * handling, and the progressive tab bar (spec §5, §11, §14).
  */
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { BAL } from '../game/balance';
 import { createLoop } from '../game/loop';
 import { format } from '../game/numbers';
 import { automationUnlocked } from '../game/systems/automation';
+import { challengesUnlocked } from '../game/systems/challenges';
+import { elementsUnlocked } from '../game/systems/elements';
 import { motesUnlocked } from '../game/systems/motes';
 import { collapseUnlocked } from '../game/systems/prestige';
 import { starChartUnlocked } from '../game/systems/starchart';
@@ -18,14 +20,24 @@ import { useGameStore } from '../state/store';
 import { OfflineModal } from './components/OfflineModal';
 import { ResourceBar } from './components/ResourceBar';
 import { AutoScreen } from './screens/AutoScreen';
+import { ChallengesScreen } from './screens/ChallengesScreen';
 import { CoreScreen } from './screens/CoreScreen';
+import { ElementsScreen } from './screens/ElementsScreen';
 import { MotesScreen } from './screens/MotesScreen';
 import { OptionsScreen } from './screens/OptionsScreen';
 import { PrestigeScreen } from './screens/PrestigeScreen';
 import { StarChartScreen } from './screens/StarChartScreen';
 import { MAX_CONTENT_WIDTH, palette, spacing } from './theme';
 
-type TabId = 'core' | 'motes' | 'prestige' | 'chart' | 'auto' | 'options';
+type TabId =
+  | 'core'
+  | 'motes'
+  | 'prestige'
+  | 'chart'
+  | 'elements'
+  | 'challenges'
+  | 'auto'
+  | 'options';
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('core');
@@ -65,6 +77,8 @@ export default function App() {
   const showMotes = motesUnlocked(game);
   const showPrestige = collapseUnlocked(game);
   const showChart = starChartUnlocked(game);
+  const showElements = elementsUnlocked(game);
+  const showChallenges = challengesUnlocked(game);
   const showAuto = automationUnlocked(game);
 
   // A tab can disappear on hard reset — fall back to Core.
@@ -72,6 +86,8 @@ export default function App() {
     (tab === 'motes' && !showMotes) ||
     (tab === 'prestige' && !showPrestige) ||
     (tab === 'chart' && !showChart) ||
+    (tab === 'elements' && !showElements) ||
+    (tab === 'challenges' && !showChallenges) ||
     (tab === 'auto' && !showAuto)
       ? 'core'
       : tab;
@@ -87,10 +103,17 @@ export default function App() {
             {activeTab === 'motes' && <MotesScreen />}
             {activeTab === 'prestige' && <PrestigeScreen />}
             {activeTab === 'chart' && <StarChartScreen />}
+            {activeTab === 'elements' && <ElementsScreen />}
+            {activeTab === 'challenges' && <ChallengesScreen />}
             {activeTab === 'auto' && <AutoScreen />}
             {activeTab === 'options' && <OptionsScreen />}
           </View>
-          <View style={styles.tabBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabBar}
+            contentContainerStyle={styles.tabBarContent}
+          >
             <Tab label="CORE" active={activeTab === 'core'} onPress={() => setTab('core')} />
             {showMotes && <Tab label="MOTES" active={activeTab === 'motes'} onPress={() => setTab('motes')} />}
             {showPrestige ? (
@@ -99,9 +122,11 @@ export default function App() {
               <Tab label="COLLAPSE" locked lockHint={`✦ ${format(BAL.collapse.unlockSpark)}`} />
             )}
             {showChart && <Tab label="CHART" active={activeTab === 'chart'} onPress={() => setTab('chart')} />}
+            {showElements && <Tab label="ELEMENTS" active={activeTab === 'elements'} onPress={() => setTab('elements')} />}
+            {showChallenges && <Tab label="TRIALS" active={activeTab === 'challenges'} onPress={() => setTab('challenges')} />}
             {showAuto && <Tab label="AUTO" active={activeTab === 'auto'} onPress={() => setTab('auto')} />}
             <Tab label="OPTIONS" active={activeTab === 'options'} onPress={() => setTab('options')} />
-          </View>
+          </ScrollView>
         </View>
         <OfflineModal />
       </SafeAreaView>
@@ -143,13 +168,19 @@ const styles = StyleSheet.create({
   },
   content: { flex: 1 },
   tabBar: {
-    flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: palette.line,
     backgroundColor: palette.bgDeep,
-    paddingVertical: spacing.sm,
+    flexGrow: 0,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  tabBarContent: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.md,
+    minWidth: '100%',
+    justifyContent: 'space-around',
+  },
+  tab: { alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 },
   tabText: { color: palette.dim, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   tabActive: { color: palette.core },
   tabLocked: { opacity: 0.5 },

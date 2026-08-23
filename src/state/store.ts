@@ -12,9 +12,17 @@ import { tick } from '../game/loop';
 import { applyOffline, OfflineSummary } from '../game/offline';
 import { defaultState } from '../game/state';
 import { AutomationId, toggleAutobuyer } from '../game/systems/automation';
+import { enterChallenge, exitChallenge } from '../game/systems/challenges';
 import { buyDim, doDimBoost } from '../game/systems/dimensions';
+import { ElementId } from '../game/balance';
+import { allocateElement, respecElements } from '../game/systems/elements';
 import { buyMoteUpgrade } from '../game/systems/motes';
-import { buyShardUpgrade, doCollapse } from '../game/systems/prestige';
+import {
+  buyPrismUpgrade,
+  buyShardUpgrade,
+  doAscend,
+  doCollapse,
+} from '../game/systems/prestige';
 import { buyStarNode, respecStarChart } from '../game/systems/starchart';
 import { buySparkUpgrade, tapPower } from '../game/systems/upgrades';
 import { BuyAmount, GameOptions, GameState } from '../game/types';
@@ -33,6 +41,12 @@ interface GameStore {
   buyMoteUpgrade(id: string): void;
   dimBoost(): void;
   collapse(): void;
+  ascend(): void;
+  buyPrismUpgrade(id: string): void;
+  allocateElement(id: ElementId): void;
+  respecElements(): void;
+  enterChallenge(id: string): void;
+  exitChallenge(): void;
   buyShardUpgrade(id: string): void;
   buyStarNode(id: string): void;
   respecStarChart(): void;
@@ -99,6 +113,46 @@ export const useGameStore = create<GameStore>((set, get) => ({
   collapse() {
     const game = get().game;
     if (doCollapse(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  ascend() {
+    const game = get().game;
+    if (doAscend(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyPrismUpgrade(id) {
+    const game = get().game;
+    if (buyPrismUpgrade(game, id)) set({ game: republish(game) });
+  },
+
+  allocateElement(id) {
+    const game = get().game;
+    if (allocateElement(game, id)) set({ game: republish(game) });
+  },
+
+  respecElements() {
+    const game = get().game;
+    respecElements(game);
+    set({ game: republish(game) });
+  },
+
+  enterChallenge(id) {
+    const game = get().game;
+    if (enterChallenge(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  exitChallenge() {
+    const game = get().game;
+    if (exitChallenge(game)) {
       set({ game: republish(game) });
       get().save();
     }

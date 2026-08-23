@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -32,6 +32,17 @@ export function defaultState(now: number = Date.now()): GameState {
     shardsEver: ZERO,
     collapses: 0,
     shardUpgrades: {},
+
+    prism: ZERO,
+    bestPrism: ZERO,
+    prismEver: ZERO,
+    ascends: 0,
+    prismGrid: {},
+
+    elements: { points: 0, alloc: {}, progress: 0 },
+
+    challenges: {},
+    activeChallenge: null,
 
     starChart: {},
 

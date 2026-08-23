@@ -5,8 +5,10 @@
  * multipliers. Resonance self-feeds (boosts Mote gain) and is softcapped.
  */
 import { BAL, RepeatableUpgradeDef } from '../balance';
-import { Decimal, ONE, ZERO, clean, softcap } from '../numbers';
+import { D, Decimal, ONE, ZERO, clean, softcap } from '../numbers';
 import { GameState } from '../types';
+import { challengeActive, challengeMoteMult } from './challengeperks';
+import { elementMoteMult } from './elements';
 import { starMoteMult } from './starchart';
 import { upgradeCost, upgradeMaxed, upgradeMult } from './upgrades';
 
@@ -28,12 +30,21 @@ export function resonanceMult(state: GameState): Decimal {
   return softcap(raw, BAL.softcap.resonance.t, BAL.softcap.resonance.p);
 }
 
-/** Motes per second: base * sqrt(Tier-1 amount) * resonance * star nodes. */
+/** Motes per second: base·√T1 × resonance × stars × elements × grid × rewards. */
 export function moteRate(state: GameState): Decimal {
+  // Famine challenge: Motes disabled during the run.
+  if (challengeActive(state, 'famine')) return ZERO;
   const t1 = state.dims[0]?.amount ?? ZERO;
   if (t1.lte(ZERO)) return ZERO;
+  const abundance = D(3).pow(state.prismGrid['abundance'] ?? 0);
   return clean(
-    BAL.motes.base.mul(t1.sqrt()).mul(resonanceMult(state)).mul(starMoteMult(state)),
+    BAL.motes.base
+      .mul(t1.sqrt())
+      .mul(resonanceMult(state))
+      .mul(starMoteMult(state))
+      .mul(elementMoteMult(state))
+      .mul(abundance)
+      .mul(challengeMoteMult(state)),
   );
 }
 

@@ -16,9 +16,14 @@ const LABELS: Record<AutomationId, { title: string; desc: string }> = {
   dim1: { title: 'Auto: Tier 1 Orbiters', desc: 'buys max each pass' },
   dim2: { title: 'Auto: Tier 2 Orbiters', desc: 'buys max each pass' },
   dim3: { title: 'Auto: Tier 3 Orbiters', desc: 'buys max each pass' },
-  dim4: { title: 'Auto: Tier 4 Orbiters', desc: 'needs the Fourth Servo star node' },
+  dim4: { title: 'Auto: Tier 4 Orbiters', desc: 'Fourth Servo star node, or Ascend' },
+  dim5: { title: 'Auto: Tier 5 Orbiters', desc: 'unlocks at Ascend' },
+  dim6: { title: 'Auto: Tier 6 Orbiters', desc: 'unlocks at Ascend' },
+  dim7: { title: 'Auto: Tier 7 Orbiters', desc: 'unlocks at Ascend' },
+  dim8: { title: 'Auto: Tier 8 Orbiters', desc: 'unlocks at Ascend' },
   sparkUpgrades: { title: 'Auto: Spark upgrades', desc: 'buys every affordable level' },
   moteUpgrades: { title: 'Auto: Mote upgrades', desc: 'buys every affordable level' },
+  dimBoost: { title: 'Auto: Dimension Boost', desc: 'boosts the moment it can (Ascend)' },
 };
 
 export function AutoScreen() {

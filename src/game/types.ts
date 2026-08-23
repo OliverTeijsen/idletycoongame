@@ -55,6 +55,25 @@ export interface GameState {
   collapses: number;
   shardUpgrades: Record<string, number>;
 
+  // P2 — Ascend
+  prism: Dec;
+  bestPrism: Dec;
+  prismEver: Dec;
+  ascends: number;
+  prismGrid: Record<string, number>;
+
+  // Elements (points/alloc are counts by design, §4)
+  elements: {
+    points: number;
+    alloc: Record<string, number>;
+    /** Seconds accrued toward the next passive point. */
+    progress: number;
+  };
+
+  // Challenges: id -> tiers completed
+  challenges: Record<string, number>;
+  activeChallenge: string | null;
+
   // Star Chart: nodeId -> active
   starChart: Record<string, boolean>;
 

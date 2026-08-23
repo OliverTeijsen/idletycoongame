@@ -9,15 +9,21 @@
 import { BAL } from '../balance';
 import { D, Decimal, ONE, ZERO, clean } from '../numbers';
 import { BuyAmount, DimensionTier, GameState } from '../types';
+import { challengeActive, costGrowthFor } from './challengeperks';
 import { globalMult, sparkMult, speedMult, tierMult } from './multipliers';
 
 export const TIER_COUNT = BAL.dimensions.length;
+
+/** Effective cost growth for a tier — Brittle challenge/reward adjusted. */
+function tierGrowth(state: GameState, tier: number): Decimal {
+  return costGrowthFor(state, BAL.dimensions[tier - 1].costGrowth);
+}
 
 /** Cost of the next single purchase of a tier (1-indexed). */
 export function dimCost(state: GameState, tier: number): Decimal {
   const def = BAL.dimensions[tier - 1];
   const bought = state.dims[tier - 1].bought;
-  return def.baseCost.mul(def.costGrowth.pow(bought));
+  return def.baseCost.mul(tierGrowth(state, tier).pow(bought));
 }
 
 /**
@@ -26,18 +32,16 @@ export function dimCost(state: GameState, tier: number): Decimal {
  */
 export function dimCostFor(state: GameState, tier: number, n: number): Decimal {
   if (n <= 0) return ZERO;
-  const def = BAL.dimensions[tier - 1];
   const first = dimCost(state, tier);
-  const g = def.costGrowth;
+  const g = tierGrowth(state, tier);
   return first.mul(g.pow(n).sub(ONE)).div(g.sub(ONE));
 }
 
 /** Largest n whose total cost fits in current Spark. */
 export function dimMaxAffordable(state: GameState, tier: number): number {
-  const def = BAL.dimensions[tier - 1];
   const first = dimCost(state, tier);
   if (state.spark.lt(first)) return 0;
-  const g = def.costGrowth;
+  const g = tierGrowth(state, tier);
   // spark ≥ first·(g^n − 1)/(g − 1)  ⇒  n ≤ log_g(spark·(g−1)/first + 1)
   const limit = state.spark.mul(g.sub(ONE)).div(first).add(ONE);
   const n = Math.floor(limit.log10() / g.log10());
@@ -55,6 +59,8 @@ export function dimMaxAffordable(state: GameState, tier: number): number {
 export function buyDim(state: GameState, tier: number, amount: BuyAmount): number {
   const t = state.dims[tier - 1];
   if (!t || !t.unlocked) return 0;
+  // Solitary challenge: only Tier-1 orbiters can be bought during the run.
+  if (tier > 1 && challengeActive(state, 'solitary')) return 0;
   const n =
     amount === 'MAX'
       ? dimMaxAffordable(state, tier)

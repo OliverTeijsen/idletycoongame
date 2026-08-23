@@ -23,11 +23,17 @@
  *   → cleanMul(result)
  */
 import { BAL } from '../balance';
-import { Decimal, ONE, cleanMul, softcap } from '../numbers';
+import { D, Decimal, ONE, cleanMul, softcap } from '../numbers';
 import { GameState } from '../types';
 import { sparkUpgradeDef, sparkUpgradeLevel, upgradeMult } from './upgrades';
 import { moteUpgradeDef, moteUpgradeLevel } from './motes';
 import { starGlobalMult, starSpeedMult, starTierMult } from './starchart';
+import {
+  challengeActive,
+  challengeSpeedMult,
+  challengeTierMult,
+} from './challengeperks';
+import { elementGlobalMult, elementSparkMult, elementSpeedMult } from './elements';
 
 /**
  * Shard multiplier: softcap(1 + 0.25·shardsEver). Computed every time — never
@@ -44,10 +50,40 @@ export function shardMult(state: GameState): Decimal {
   return cleanMul(softcap(raw, BAL.softcap.shard.t, BAL.softcap.shard.p));
 }
 
+/**
+ * Prism multiplier: 2^softcap(prismEver). The exponent (not the result) is
+ * softcapped so it can never overflow (§7 P2). Based on lifetime-this-cycle
+ * Prism for the same reason shardMult is — spending must never punish.
+ */
+export function prismMult(state: GameState): Decimal {
+  const raw = Math.max(0, state.prismEver.toNumber());
+  const t = BAL.softcap.prismExp.t;
+  const capped = raw <= t ? raw : t * Math.pow(raw / t, BAL.softcap.prismExp.p);
+  return cleanMul(D(2).pow(capped));
+}
+
+/** Prism grid: Amplify (all production ×2 per level). */
+export function amplifyMult(state: GameState): Decimal {
+  return cleanMul(D(2).pow(state.prismGrid['amplify'] ?? 0));
+}
+
+/** Prism grid: Momentum (speed ×1.5 per level). */
+function momentumMult(state: GameState): Decimal {
+  return cleanMul(D(1.5).pow(state.prismGrid['momentum'] ?? 0));
+}
+
 /** Global production multiplier applied to every tier's output. */
 export function globalMult(state: GameState): Decimal {
+  // Dim challenge: the global multiplier is forced to ×1 during the run.
+  if (challengeActive(state, 'dim')) return ONE;
   // §9 composition order — append-only as layers unlock.
-  return cleanMul(starGlobalMult(state).mul(shardMult(state)));
+  return cleanMul(
+    starGlobalMult(state)
+      .mul(elementGlobalMult(state))
+      .mul(shardMult(state))
+      .mul(prismMult(state))
+      .mul(amplifyMult(state)),
+  );
 }
 
 /**
@@ -55,11 +91,16 @@ export function globalMult(state: GameState): Decimal {
  * all tiers — the stage also reads it to spin orbiters faster.
  */
 export function speedMult(state: GameState): Decimal {
+  // Still Ring challenge: speed locked to ×1 during the run.
+  if (challengeActive(state, 'stillRing')) return ONE;
   const focus = moteUpgradeDef('focus');
-  if (!focus) return ONE;
-  const raw = upgradeMult(focus, moteUpgradeLevel(state, 'focus'));
+  const focusRaw = focus ? upgradeMult(focus, moteUpgradeLevel(state, 'focus')) : ONE;
   return cleanMul(
-    softcap(raw, BAL.softcap.focus.t, BAL.softcap.focus.p).mul(starSpeedMult(state)),
+    softcap(focusRaw, BAL.softcap.focus.t, BAL.softcap.focus.p)
+      .mul(starSpeedMult(state))
+      .mul(elementSpeedMult(state))
+      .mul(momentumMult(state))
+      .mul(challengeSpeedMult(state)),
   );
 }
 
@@ -79,12 +120,17 @@ export function sparkMult(state: GameState): Decimal {
     m = m.mul(softcap(raw, BAL.softcap.density.t, BAL.softcap.density.p));
   }
 
+  m = m.mul(elementSparkMult(state));
+
   return cleanMul(m);
 }
 
-/** Per-tier multiplier (1-indexed). Dimension Boosts, Ignition, Cascade, star nodes. */
+/** Per-tier multiplier (1-indexed). Boosts, Ignition, Cascade, stars, Solitary reward. */
 export function tierMult(state: GameState, tier: number): Decimal {
-  let m = BAL.dimBoost.mult.pow(state.dimBoosts).mul(starTierMult(state, tier));
+  let m = BAL.dimBoost.mult
+    .pow(state.dimBoosts)
+    .mul(starTierMult(state, tier))
+    .mul(challengeTierMult(state));
 
   if (tier === 1) {
     const ignition = sparkUpgradeDef('ignition');
@@ -109,7 +155,11 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
     { label: 'Spark upgrades', value: sparkMult(state) },
     { label: 'Orbit speed', value: speedMult(state) },
     { label: 'Star Chart', value: starGlobalMult(state) },
+    { label: 'Elements', value: elementGlobalMult(state) },
+    { label: 'Challenge rewards', value: challengeTierMult(state) },
     { label: 'Shards', value: shardMult(state) },
+    { label: 'Prism', value: prismMult(state) },
+    { label: 'Prism grid', value: amplifyMult(state) },
     { label: 'Global (total)', value: globalMult(state) },
   ];
 }

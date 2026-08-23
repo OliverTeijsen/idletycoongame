@@ -4,7 +4,16 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
 import { format, formatWhole } from '../../game/numbers';
-import { canCollapse, collapseGain, shardUpgradeCost } from '../../game/systems/prestige';
+import {
+  ascendGain,
+  ascendUnlocked,
+  canAscend,
+  canCollapse,
+  collapseGain,
+  prismUpgradeCost,
+  prismUpgradeLevel,
+  shardUpgradeCost,
+} from '../../game/systems/prestige';
 import { shardUpgradeLevel } from '../../game/systems/shardperks';
 import { useGameStore } from '../../state/store';
 import { Row } from '../components/Row';
@@ -13,12 +22,18 @@ import { mono, palette, spacing } from '../theme';
 export function PrestigeScreen() {
   const game = useGameStore((s) => s.game);
   const collapse = useGameStore((s) => s.collapse);
+  const ascend = useGameStore((s) => s.ascend);
   const buyShardUpgrade = useGameStore((s) => s.buyShardUpgrade);
+  const buyPrismUpgrade = useGameStore((s) => s.buyPrismUpgrade);
   const [confirming, setConfirming] = useState(false);
+  const [confirmingAscend, setConfirmingAscend] = useState(false);
   const notation = game.options.notation;
 
   const gain = collapseGain(game);
   const ready = canCollapse(game);
+  const showAscend = ascendUnlocked(game);
+  const aGain = ascendGain(game);
+  const aReady = canAscend(game);
 
   const onCollapsePress = () => {
     if (!ready) return;
@@ -28,6 +43,16 @@ export function PrestigeScreen() {
     }
     setConfirming(false);
     collapse();
+  };
+
+  const onAscendPress = () => {
+    if (!aReady) return;
+    if (game.options.confirmResets && !confirmingAscend) {
+      setConfirmingAscend(true);
+      return;
+    }
+    setConfirmingAscend(false);
+    ascend();
   };
 
   return (
@@ -83,13 +108,88 @@ export function PrestigeScreen() {
         );
       })}
 
-      <View style={styles.teaser}>
-        <Text style={styles.teaserTitle}>🔒 ASCEND</Text>
-        <Text style={styles.teaserText}>
-          A deeper reset awakens at ◆ 50 lifetime Shards. It will trade everything below for
-          Prism — and unlock Elements and Challenges.
-        </Text>
-      </View>
+      {showAscend ? (
+        <>
+          <View style={[styles.card, styles.ascendCard]}>
+            <Text style={[styles.cardTitle, { color: palette.prism }]}>ASCEND</Text>
+            <Text style={styles.gain}>
+              ▲ +{formatWhole(aGain, notation)} <Text style={[styles.gainLabel, { color: palette.prism }]}>Prism</Text>
+            </Text>
+            <Text style={styles.detail}>
+              best Shards this cycle: ◆ {formatWhole(game.bestShards, notation)} · needs ◆{' '}
+              {formatWhole(BAL.ascend.unlockShards, notation)}
+            </Text>
+            <Text style={styles.resets}>
+              Resets: everything Collapse does, PLUS Shards, the Shard tree and the Star Chart
+            </Text>
+            <Text style={styles.keeps}>Keeps: Prism & grid, Elements, challenge rewards</Text>
+            <Pressable
+              onPress={onAscendPress}
+              disabled={!aReady}
+              style={[
+                styles.button,
+                { backgroundColor: palette.prism },
+                !aReady && styles.buttonLocked,
+                confirmingAscend && styles.buttonConfirm,
+              ]}
+            >
+              <Text style={[styles.buttonText, confirmingAscend && styles.buttonConfirmText]}>
+                {!aReady
+                  ? `reach ◆ ${formatWhole(BAL.ascend.unlockShards, notation)} Shards first`
+                  : confirmingAscend
+                    ? 'TAP AGAIN TO CONFIRM'
+                    : 'ASCEND THE GYRE'}
+              </Text>
+            </Pressable>
+            {confirmingAscend && (
+              <Pressable onPress={() => setConfirmingAscend(false)}>
+                <Text style={styles.cancel}>cancel</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {game.ascends > 0 && (
+            <>
+              <Text style={styles.section}>PRISM GRID · ▲ {formatWhole(game.prism, notation)}</Text>
+              {BAL.prismGrid.map((u) => {
+                const level = prismUpgradeLevel(game, u.id);
+                const maxed = u.maxLevel !== null && level >= u.maxLevel;
+                const cost = prismUpgradeCost(u.id, level);
+                return (
+                  <Row
+                    key={u.id}
+                    color={palette.prism}
+                    title={u.name}
+                    subtext={`${u.desc} · lvl ${level}`}
+                    costText={`▲ ${formatWhole(cost, notation)}`}
+                    affordable={game.prism.gte(cost)}
+                    maxed={maxed}
+                    onBuy={() => buyPrismUpgrade(u.id)}
+                  />
+                );
+              })}
+            </>
+          )}
+        </>
+      ) : (
+        <View style={styles.teaser}>
+          <Text style={styles.teaserTitle}>🔒 ASCEND</Text>
+          <Text style={styles.teaserText}>
+            A deeper reset awakens at ◆ {formatWhole(BAL.ascend.unlockShards, notation)} best
+            Shards. It will trade everything below for Prism — and unlock Elements and
+            Challenges.
+          </Text>
+        </View>
+      )}
+
+      {game.ascends > 0 && (
+        <View style={styles.teaser}>
+          <Text style={[styles.teaserTitle, { color: palette.aeon }]}>🔒 CONVERGE</Text>
+          <Text style={styles.teaserText}>
+            The third layer awakens at ▲ 30 Prism — Minerals, Research and Boost Managers await.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -104,6 +204,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: 'center',
   },
+  ascendCard: { borderColor: palette.prism, backgroundColor: '#1c1020', marginTop: spacing.lg },
   cardTitle: { color: palette.shard, fontSize: 12, fontWeight: '800', letterSpacing: 3 },
   gain: { color: palette.ink, fontSize: 26, fontWeight: '800', marginTop: spacing.sm, ...mono },
   gainLabel: { color: palette.shard, fontSize: 14 },

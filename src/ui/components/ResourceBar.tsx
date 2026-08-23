@@ -30,12 +30,20 @@ export function ResourceBar() {
           <Text style={styles.rate}>+{format(moteRate(game), { notation, small: true })}/s</Text>
         </View>
       )}
-      {game.shardsEver.gt(0) && (
+      {(game.shardsEver.gt(0) || game.ascends > 0) && (
         <View style={styles.entry}>
           <Text style={[styles.value, { color: palette.shard }]}>
             ◆ {format(game.shards, { notation })}
           </Text>
           <Text style={styles.rate}>on Collapse</Text>
+        </View>
+      )}
+      {game.ascends > 0 && (
+        <View style={styles.entry}>
+          <Text style={[styles.value, { color: palette.prism }]}>
+            ▲ {format(game.prism, { notation })}
+          </Text>
+          <Text style={styles.rate}>on Ascend</Text>
         </View>
       )}
     </View>

@@ -9,7 +9,7 @@
  * by Tier 1 draining the Spark first.
  */
 import { GameState } from '../types';
-import { buyDim } from './dimensions';
+import { buyDim, canDimBoost, doDimBoost } from './dimensions';
 import { buyMoteUpgrade } from './motes';
 import { autobuyInterval } from './shardperks';
 import { starAutobuyTier } from './starchart';
@@ -21,19 +21,31 @@ export const AUTOMATION_IDS = [
   'dim2',
   'dim3',
   'dim4',
+  'dim5',
+  'dim6',
+  'dim7',
+  'dim8',
   'sparkUpgrades',
   'moteUpgrades',
+  'dimBoost',
 ] as const;
 export type AutomationId = (typeof AUTOMATION_IDS)[number];
 
 export function automationUnlocked(state: GameState): boolean {
-  return state.collapses > 0;
+  return state.collapses > 0 || state.ascends > 0;
 }
 
-/** Does this autobuyer exist yet for this player? */
+/**
+ * Does this autobuyer exist yet? P1: tiers 1–3 + upgrades. The Fourth Servo
+ * star node adds tier 4. P2 (Ascend): all tiers + auto-Dimension-Boost
+ * (spec §8.7 table).
+ */
 export function autobuyerAvailable(state: GameState, id: AutomationId): boolean {
   if (!automationUnlocked(state)) return false;
+  if (state.ascends > 0) return true;
   if (id === 'dim4') return starAutobuyTier(state, 4);
+  if (id === 'dim5' || id === 'dim6' || id === 'dim7' || id === 'dim8' || id === 'dimBoost')
+    return false;
   return true;
 }
 
@@ -61,6 +73,10 @@ export function tickAutomation(state: GameState, dt: number): void {
 function runAutobuyPass(state: GameState): void {
   // Highest automated tier first.
   for (const [id, tier] of [
+    ['dim8', 8],
+    ['dim7', 7],
+    ['dim6', 6],
+    ['dim5', 5],
     ['dim4', 4],
     ['dim3', 3],
     ['dim2', 2],
@@ -69,6 +85,14 @@ function runAutobuyPass(state: GameState): void {
     if (autobuyerAvailable(state, id) && autobuyerEnabled(state, id)) {
       buyDim(state, tier, 'MAX');
     }
+  }
+
+  if (
+    autobuyerAvailable(state, 'dimBoost') &&
+    autobuyerEnabled(state, 'dimBoost') &&
+    canDimBoost(state)
+  ) {
+    doDimBoost(state);
   }
 
   if (autobuyerAvailable(state, 'sparkUpgrades') && autobuyerEnabled(state, 'sparkUpgrades')) {

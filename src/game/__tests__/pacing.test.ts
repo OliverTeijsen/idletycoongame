@@ -18,7 +18,15 @@ import {
   highestUnlockedTier,
 } from '../systems/dimensions';
 import { buyMoteUpgrade } from '../systems/motes';
-import { buyShardUpgrade, canCollapse, collapseGain, doCollapse } from '../systems/prestige';
+import {
+  buyPrismUpgrade,
+  buyShardUpgrade,
+  canAscend,
+  canCollapse,
+  collapseGain,
+  doAscend,
+  doCollapse,
+} from '../systems/prestige';
 import { buyStarNode } from '../systems/starchart';
 import { buySparkUpgrade, tapPower } from '../systems/upgrades';
 import { GameState } from '../types';
@@ -140,6 +148,53 @@ describe('pacing', () => {
     // no state poisoning across many resets
     expect(Number.isNaN(s.spark.mantissa)).toBe(false);
     expect(Number.isNaN(s.shards.mantissa)).toBe(false);
+  });
+
+  it('the ascend loop reaches P2 and re-collapsing after it is faster', () => {
+    const s = defaultState(0);
+
+    /** Greedy P1+P2 player: collapse/ascend eagerly, spend everything. */
+    const playWithAscends = (sec: number) => {
+      playSecond(s, sec < 180 ? 4 : 0);
+      if (canAscend(s)) doAscend(s);
+      else if (canCollapse(s)) {
+        const gain = collapseGain(s);
+        if (s.collapses === 0 || gain.gte(s.shards.add(1).mul(0.25))) doCollapse(s);
+      }
+      for (const u of BAL.shardUpgrades) buyShardUpgrade(s, u.id);
+      for (const u of BAL.prismGrid) buyPrismUpgrade(s, u.id);
+      for (const n of BAL.starChart) buyStarNode(s, n.id);
+    };
+
+    let ascendAt = -1;
+    let collapsesBeforeAscend = 0;
+    let reclearAt = -1;
+    const HORIZON = 4 * 3600;
+    for (let sec = 0; sec < HORIZON; sec++) {
+      playWithAscends(sec);
+      if (ascendAt < 0 && s.ascends >= 1) {
+        ascendAt = sec;
+        collapsesBeforeAscend = s.collapses; // lifetime counter — kept by Ascend
+      }
+      // §10: each prestige should make the previous layer faster to RE-CLEAR.
+      // The P1 layer's clear = reaching the Ascend threshold again.
+      if (ascendAt >= 0 && reclearAt < 0 && s.bestShards.gte(BAL.ascend.unlockShards.toNumber())) {
+        reclearAt = sec - ascendAt;
+        break;
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      `[pacing] ascend#1: ${ascendAt}s (after ${collapsesBeforeAscend} collapses) · P1 re-clear post-ascend: +${reclearAt}s · prismEver=${s.prismEver.toString()}`,
+    );
+
+    expect(ascendAt).toBeGreaterThan(0);
+    expect(ascendAt).toBeLessThan(HORIZON);
+    // Re-clearing the P1 layer (50 bestShards again) must be meaningfully
+    // faster than the original climb — Prism has to carry its weight.
+    expect(reclearAt).toBeGreaterThan(0);
+    expect(reclearAt).toBeLessThan(ascendAt / 2);
+    expect(Number.isNaN(s.prism.mantissa)).toBe(false);
   });
 
   it('absurd wealth (1e300+) keeps ticking finitely', () => {

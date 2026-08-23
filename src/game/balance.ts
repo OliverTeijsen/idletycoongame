@@ -60,6 +60,38 @@ export interface ShardUpgradeDef {
   maxLevel: number | null;
 }
 
+/** Prism grid entry (P2's own tree, spec §7). Cost in Prism. */
+export interface PrismUpgradeDef {
+  id: string;
+  name: string;
+  desc: string;
+  baseCost: Decimal;
+  costGrowth: Decimal;
+  maxLevel: number | null;
+}
+
+export type ElementId = 'ignis' | 'aqua' | 'terra' | 'aer' | 'lux';
+
+export interface ElementDef {
+  id: ElementId;
+  symbol: string;
+  name: string;
+  desc: string;
+  /** Terra allocates only once Minerals exist (P3). */
+  locked?: boolean;
+}
+
+export interface ChallengeDef {
+  id: string;
+  name: string;
+  restriction: string;
+  rewardDesc: string;
+  maxTier: number;
+  /** Spark goal for completing tier `tier` (0-indexed next tier). */
+  goalBase: Decimal;
+  goalGrowth: Decimal;
+}
+
 export const BAL = {
   /** Spark granted per tap before Charge Coil. */
   tapBase: D(1),
@@ -256,6 +288,124 @@ export const BAL = {
   automation: { baseInterval: 1 },
 
   /**
+   * P2 — Ascend (spec §7). Gain: prism = floor(sqrt(bestShards/coef)), plus
+   * one free Prism per completed Dim challenge tier. Effect: everything
+   * ×2^softcap(prismEver) — exponent capped via softcap.prismExp.
+   */
+  ascend: { unlockShards: D(50), coef: D(8), exp: 0.5 },
+
+  /** Prism grid (P2's own tree). Repeatable, rising Prism cost. */
+  prismGrid: [
+    {
+      id: 'amplify',
+      name: 'Amplify',
+      desc: 'All production ×2',
+      baseCost: D(2),
+      costGrowth: D(3),
+      maxLevel: null,
+    },
+    {
+      id: 'momentum',
+      name: 'Momentum',
+      desc: 'Production speed ×1.5',
+      baseCost: D(3),
+      costGrowth: D(3),
+      maxLevel: null,
+    },
+    {
+      id: 'abundance',
+      name: 'Abundance',
+      desc: 'Mote gain ×3',
+      baseCost: D(2),
+      costGrowth: D(4),
+      maxLevel: null,
+    },
+  ] as PrismUpgradeDef[],
+
+  /**
+   * Elements (spec §8.2). Points come from Ascends (+2), challenge
+   * completions (+1) and a slow passive trickle; allocation is free to respec.
+   */
+  elements: {
+    defs: [
+      { id: 'ignis', symbol: '△', name: 'Ignis', desc: 'Spark +10% per point' },
+      { id: 'aqua', symbol: '○', name: 'Aqua', desc: 'Motes +10% per point' },
+      { id: 'terra', symbol: '□', name: 'Terra', desc: 'Ore +10% per point (Converge)', locked: true },
+      { id: 'aer', symbol: '◇', name: 'Aer', desc: 'Speed +10% per point' },
+      { id: 'lux', symbol: '☆', name: 'Lux', desc: 'Everything +5% per point' },
+    ] as ElementDef[],
+    perPoint: { ignis: D(1.1), aqua: D(1.1), terra: D(1.1), aer: D(1.1), lux: D(1.05) },
+    /** ≥ capstoneAt points in one element: extra global multiplier. */
+    capstoneAt: 10,
+    capstoneMult: D(1.2),
+    pointsPerAscend: 2,
+    pointsPerChallenge: 1,
+    /** Seconds of play per passive point once unlocked. */
+    passiveSeconds: 3600,
+  },
+
+  /**
+   * Challenges (spec §8.4): a run under a restriction; reaching the Spark
+   * goal completes the tier for a permanent reward. Goals scale per tier.
+   */
+  challenges: {
+    defs: [
+      {
+        id: 'stillRing',
+        name: 'Still Ring',
+        restriction: 'Production speed locked to 1',
+        rewardDesc: 'Base speed +50% per tier',
+        maxTier: 3,
+        goalBase: D(1e7),
+        goalGrowth: D(1e3),
+      },
+      {
+        id: 'famine',
+        name: 'Famine',
+        restriction: 'Motes disabled',
+        rewardDesc: 'Mote gain ×3 per tier',
+        maxTier: 3,
+        goalBase: D(1e7),
+        goalGrowth: D(1e3),
+      },
+      {
+        id: 'solitary',
+        name: 'Solitary',
+        restriction: 'Only Tier-1 orbiters can be bought',
+        rewardDesc: 'All tier production +10% per tier',
+        maxTier: 3,
+        goalBase: D(3e6),
+        goalGrowth: D(1e3),
+      },
+      {
+        id: 'brittle',
+        name: 'Brittle',
+        restriction: 'Orbiter costs grow much faster',
+        rewardDesc: 'Cost growth −5% per tier',
+        maxTier: 3,
+        goalBase: D(1e7),
+        goalGrowth: D(1e3),
+      },
+      {
+        id: 'dim',
+        name: 'Dim',
+        restriction: 'Global multiplier forced to ×1',
+        rewardDesc: '+1 free Prism on every Ascend per tier',
+        maxTier: 3,
+        goalBase: D(3e6),
+        goalGrowth: D(1e3),
+      },
+    ] as ChallengeDef[],
+    /** Brittle restriction: costGrowth ^ this while inside the run. */
+    brittleGrowthExp: 1.25,
+    /** Brittle reward: costGrowth ^ (this ^ tiers). */
+    brittleRewardExp: 0.95,
+    stillRingReward: D(1.5),
+    famineReward: D(3),
+    solitaryReward: D(1.1),
+  },
+
+  /**
    * Softcaps (spec §6.5). Focus and Density are capped beyond the spec's
    * list because Motes scale with Tier-1 throughput: spark → motes → speed/
    * density → spark is a feedback loop, and uncapped it amplifies the
@@ -264,6 +414,8 @@ export const BAL = {
   softcap: {
     /** Applied to the Shard multiplier (1 + 0.25·shards). */
     shard: { t: D(1e3), p: 0.5 },
+    /** Applied to the EXPONENT of the Prism multiplier (2^prism). */
+    prismExp: { t: 60, p: 0.5 },
     /** Applied to the composed Resonance multiplier. */
     resonance: { t: D(1e4), p: 0.5 },
     /** Applied to the composed Flux Lattice multiplier. */
