@@ -27,6 +27,8 @@ const LABELS: Record<AutomationId, { title: string; desc: string }> = {
   moteUpgrades: { title: 'Auto: Mote upgrades', desc: 'buys every affordable level' },
   dimBoost: { title: 'Auto: Dimension Boost', desc: 'boosts the moment it can (Ascend)' },
   autoCollapse: { title: 'Auto: Collapse', desc: 'Standing Wave aeon node · collapses when worthwhile' },
+  autoAscend: { title: 'Auto: Ascend', desc: 'Recurrence I meta upgrade · ascends when worthwhile' },
+  autoConverge: { title: 'Auto: Converge', desc: 'Recurrence II meta upgrade · converges when worthwhile' },
 };
 
 export function AutoScreen() {

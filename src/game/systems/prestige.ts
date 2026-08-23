@@ -197,6 +197,107 @@ export function doConverge(state: GameState): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// P4 — Unify (spec §7): the endgame/meta layer
+// ---------------------------------------------------------------------------
+
+/** The Unify card reveals once qualified (Aeon side) or after the first Unify. */
+export function unifyUnlocked(state: GameState): boolean {
+  return state.unifies > 0 || state.bestAeon.gte(BAL.unify.unlockAeon);
+}
+
+/** Singularity granted by unifying now: floor((bestAeon/coef)^exp). */
+export function unifyGain(state: GameState): Decimal {
+  if (state.bestAeon.lt(BAL.unify.unlockAeon)) return ZERO;
+  return clean(state.bestAeon.div(BAL.unify.coef).pow(BAL.unify.exp).floor());
+}
+
+/** Unify needs the Aeon threshold AND the Singularity Seed research (§7 gate). */
+export function canUnify(state: GameState): boolean {
+  return unifyGain(state).gte(1) && state.research['singularitySeed'] === true;
+}
+
+/**
+ * Perform a Unify. Resets EVERYTHING — the P3 layer (Aeon, tree), Research
+ * (unless Eternal Archive), Minerals, Flux, and all layers below. Keeps:
+ * Singularity & Meta Shop, challenge completions and element points (their
+ * rewards are permanent per §8.4/§8.2), automation toggles, lifetime stats.
+ */
+export function doUnify(state: GameState): boolean {
+  if (!canUnify(state)) return false;
+  const gain = unifyGain(state);
+
+  state.singularity = clean(state.singularity.add(gain));
+  state.singularityEver = clean(state.singularityEver.add(gain));
+  state.unifies += 1;
+
+  // P3 layer gone.
+  state.aeon = ZERO;
+  state.bestAeon = ZERO;
+  state.aeonEver = ZERO;
+  state.aeonTree = {};
+
+  // Minerals, Research (unless archived) and Flux gone.
+  state.ore = ZERO;
+  state.miners = {};
+  if (!state.metaShop['keepResearch']) state.research = {};
+  state.flux = ZERO;
+  state.warpRemaining = 0;
+  state.boostRemaining = 0;
+
+  // P2 layer gone.
+  state.prism = ZERO;
+  state.bestPrism = ZERO;
+  state.prismEver = ZERO;
+  state.prismGrid = {};
+  const refund = Object.values(state.elements.alloc).reduce((a, b) => a + b, 0);
+  state.elements = { ...state.elements, points: state.elements.points + refund, alloc: {} };
+
+  // P1 layer + Layer 0 gone.
+  state.shards = ZERO;
+  state.bestShards = ZERO;
+  state.shardsEver = ZERO;
+  state.shardUpgrades = {};
+  state.starChart = {};
+  state.activeChallenge = null;
+
+  resetLayer0(state);
+
+  // Deep Memory: the new cycle begins with a little Aeon warmth.
+  if (state.metaShop['starterAeon']) {
+    state.aeon = D(2);
+    state.aeonEver = D(2);
+    state.bestAeon = D(2);
+  }
+
+  // Manager slots may have shrunk with Research — trim the assignments.
+  let slots = BAL.managers.baseSlots;
+  if (state.research['slotA']) slots += 1;
+  if (state.research['slotB']) slots += 1;
+  state.boostSlots = state.boostSlots.slice(0, slots);
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Meta Shop
+// ---------------------------------------------------------------------------
+
+export function metaOwned(state: GameState, id: string): boolean {
+  return state.metaShop[id] === true;
+}
+
+/** Buy a one-time Meta Shop upgrade with Singularity. Returns success. */
+export function buyMetaUpgrade(state: GameState, id: string): boolean {
+  const def = BAL.metaShop.find((m) => m.id === id);
+  if (!def) return false;
+  if (metaOwned(state, id)) return false;
+  if (state.singularity.lt(def.cost)) return false;
+  state.singularity = state.singularity.sub(def.cost);
+  state.metaShop = { ...state.metaShop, [id]: true };
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Aeon tree (P3's own tree)
 // ---------------------------------------------------------------------------
 

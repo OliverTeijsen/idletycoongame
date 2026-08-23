@@ -67,6 +67,10 @@ interface SavedGame {
   warpRemaining: number;
   boostRemaining: number;
   boostSlots: string[];
+  singularity: string;
+  singularityEver: string;
+  unifies: number;
+  metaShop: Record<string, boolean>;
   options: GameOptions;
 }
 
@@ -75,11 +79,12 @@ interface SavedGame {
 // ---------------------------------------------------------------------------
 
 const migrations: Record<number, (old: Record<string, unknown>) => Record<string, unknown>> = {
-  // v1→v2 (Phase 3), v2→v3 (Phase 4) and v3→v4 (Phase 5) added only new
-  // fields; default-filling below IS the migration for additive changes.
+  // Every version so far added only new fields; default-filling below IS the
+  // migration for additive changes.
   1: (old) => old,
   2: (old) => old,
   3: (old) => old,
+  4: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -140,6 +145,7 @@ const KNOWN_AEON_NODES = new Set(BAL.aeonTree.map((n) => n.id));
 const KNOWN_RESEARCH = new Set(BAL.research.map((r) => r.id));
 const KNOWN_MINERS = BAL.miners.map((m) => ({ id: m.id, maxLevel: null as number | null }));
 const KNOWN_MANAGERS = new Set(BAL.managers.defs.map((m) => m.id));
+const KNOWN_META = new Set(BAL.metaShop.map((m) => m.id));
 
 /** Assigned managers: known ids, de-duplicated, capped at the possible max. */
 function slotsOf(value: unknown): string[] {
@@ -234,6 +240,10 @@ export function serializeState(state: GameState): string {
     warpRemaining: state.warpRemaining,
     boostRemaining: state.boostRemaining,
     boostSlots: [...state.boostSlots],
+    singularity: decToString(state.singularity),
+    singularityEver: decToString(state.singularityEver),
+    unifies: state.unifies,
+    metaShop: { ...state.metaShop },
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -342,6 +352,11 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     warpRemaining: Math.min(num(saved.warpRemaining, 0, 0), 86400),
     boostRemaining: Math.min(num(saved.boostRemaining, 0, 0), 86400),
     boostSlots: slotsOf(saved.boostSlots),
+
+    singularity: decFromString(saved.singularity ?? '0'),
+    singularityEver: decFromString(saved.singularityEver ?? '0'),
+    unifies: int(saved.unifies, 0, 0),
+    metaShop: activeSetOf(saved.metaShop, KNOWN_META),
 
     options: {
       notation: notationOf(rawOptions.notation),

@@ -21,11 +21,13 @@ import { buyMiner, buyResearch } from '../game/systems/minerals';
 import { buyMoteUpgrade } from '../game/systems/motes';
 import {
   buyAeonNode,
+  buyMetaUpgrade,
   buyPrismUpgrade,
   buyShardUpgrade,
   doAscend,
   doCollapse,
   doConverge,
+  doUnify,
 } from '../game/systems/prestige';
 import { startFluxBoost, startWarp } from '../game/systems/timeflux';
 import { buyStarNode, respecStarChart } from '../game/systems/starchart';
@@ -48,6 +50,8 @@ interface GameStore {
   collapse(): void;
   ascend(): void;
   converge(): void;
+  unify(): void;
+  buyMetaUpgrade(id: string): void;
   buyAeonNode(id: string): void;
   buyMiner(id: string): void;
   buyResearch(id: string): void;
@@ -141,6 +145,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
   converge() {
     const game = get().game;
     if (doConverge(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  unify() {
+    const game = get().game;
+    if (doUnify(game)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyMetaUpgrade(id) {
+    const game = get().game;
+    if (buyMetaUpgrade(game, id)) {
       set({ game: republish(game) });
       get().save();
     }

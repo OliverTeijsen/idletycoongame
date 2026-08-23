@@ -96,6 +96,12 @@ export interface GameState {
   // Boost Managers: assigned ids, at most slot count
   boostSlots: string[];
 
+  // P4 — Unify
+  singularity: Dec;
+  singularityEver: Dec;
+  unifies: number;
+  metaShop: Record<string, boolean>;
+
   // Star Chart: nodeId -> active
   starChart: Record<string, boolean>;
 

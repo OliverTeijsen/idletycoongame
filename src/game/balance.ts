@@ -104,6 +104,14 @@ export interface ManagerDef {
   desc: string;
 }
 
+/** Meta Shop entry (P4, spec §7): one-time, bought with Singularity. */
+export interface MetaUpgradeDef {
+  id: string;
+  name: string;
+  desc: string;
+  cost: Decimal; // in Singularity
+}
+
 export interface ElementDef {
   id: ElementId;
   symbol: string;
@@ -488,6 +496,24 @@ export const BAL = {
     warp: { cost: D(60), mult: 2, seconds: 300 },
     boost: { cost: D(30), mult: D(3), seconds: 120 },
   },
+
+  /**
+   * P4 — Unify (spec §7), the endgame/meta layer. Gated on Aeon AND the
+   * Singularity Seed research (the challenge-completion-style gate). Gain:
+   * singularity = floor((bestAeon/coef)^exp) — cheap first one, long tail.
+   * Effect: ×multPer global per lifetime Singularity, persisting across
+   * every reset, plus the Meta Shop.
+   */
+  unify: { unlockAeon: D(10), coef: D(5), exp: 0.5, multPer: D(10) },
+
+  /** Meta Shop: permanent QoL + automation-of-prestiges. */
+  metaShop: [
+    { id: 'autoAscend', name: 'Recurrence I', desc: 'Auto-Ascend when worthwhile', cost: D(1) },
+    { id: 'autoConverge', name: 'Recurrence II', desc: 'Auto-Converge when worthwhile', cost: D(2) },
+    { id: 'starterAeon', name: 'Deep Memory', desc: 'Begin each cycle with 2 Aeon', cost: D(2) },
+    { id: 'keepResearch', name: 'Eternal Archive', desc: 'Research survives Unify', cost: D(3) },
+    { id: 'metaEngine', name: 'Singular Engine', desc: 'All production ×3', cost: D(5) },
+  ] as MetaUpgradeDef[],
 
   /**
    * Softcaps (spec §6.5). Focus and Density are capped beyond the spec's

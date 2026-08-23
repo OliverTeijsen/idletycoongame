@@ -11,12 +11,16 @@ import {
   canAscend,
   canCollapse,
   canConverge,
+  canUnify,
   collapseGain,
   convergeGain,
   convergeUnlocked,
+  metaOwned,
   prismUpgradeCost,
   prismUpgradeLevel,
   shardUpgradeCost,
+  unifyGain,
+  unifyUnlocked,
 } from '../../game/systems/prestige';
 import { shardUpgradeLevel } from '../../game/systems/shardperks';
 import { useGameStore } from '../../state/store';
@@ -31,9 +35,12 @@ export function PrestigeScreen() {
   const buyPrismUpgrade = useGameStore((s) => s.buyPrismUpgrade);
   const converge = useGameStore((s) => s.converge);
   const buyAeonNode = useGameStore((s) => s.buyAeonNode);
+  const unify = useGameStore((s) => s.unify);
+  const buyMetaUpgrade = useGameStore((s) => s.buyMetaUpgrade);
   const [confirming, setConfirming] = useState(false);
   const [confirmingAscend, setConfirmingAscend] = useState(false);
   const [confirmingConverge, setConfirmingConverge] = useState(false);
+  const [confirmingUnify, setConfirmingUnify] = useState(false);
   const notation = game.options.notation;
 
   const gain = collapseGain(game);
@@ -74,6 +81,21 @@ export function PrestigeScreen() {
     }
     setConfirmingConverge(false);
     converge();
+  };
+
+  const showUnify = unifyUnlocked(game);
+  const uGain = unifyGain(game);
+  const uReady = canUnify(game);
+  const needsSeed = !game.research['singularitySeed'] && game.bestAeon.gte(BAL.unify.unlockAeon);
+
+  const onUnifyPress = () => {
+    if (!uReady) return;
+    if (game.options.confirmResets && !confirmingUnify) {
+      setConfirmingUnify(true);
+      return;
+    }
+    setConfirmingUnify(false);
+    unify();
   };
 
   return (
@@ -266,6 +288,86 @@ export function PrestigeScreen() {
                 })}
               </>
             )}
+
+            {showUnify ? (
+              <>
+                <View style={[styles.card, styles.unifyCard]}>
+                  <Text style={[styles.cardTitle, { color: palette.singularity }]}>UNIFY</Text>
+                  <Text style={styles.gain}>
+                    ⦿ +{formatWhole(uGain, notation)}{' '}
+                    <Text style={[styles.gainLabel, { color: palette.singularity }]}>
+                      Singularity
+                    </Text>
+                  </Text>
+                  <Text style={styles.detail}>
+                    best Aeon this cycle: ✧ {formatWhole(game.bestAeon, notation)}
+                  </Text>
+                  <Text style={styles.resets}>
+                    Resets: EVERYTHING — Aeon & tree, Research, Miners, Flux, and every layer
+                    below
+                  </Text>
+                  <Text style={styles.keeps}>
+                    Keeps: Singularity & Meta Shop, element points, trial rewards
+                  </Text>
+                  <Pressable
+                    onPress={onUnifyPress}
+                    disabled={!uReady}
+                    style={[
+                      styles.button,
+                      { backgroundColor: palette.singularity },
+                      !uReady && styles.buttonLocked,
+                      confirmingUnify && styles.buttonConfirm,
+                    ]}
+                  >
+                    <Text style={[styles.buttonText, confirmingUnify && styles.buttonConfirmText]}>
+                      {!uReady
+                        ? needsSeed
+                          ? 'research the Singularity Seed first'
+                          : `reach ✧ ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon first`
+                        : confirmingUnify
+                          ? 'TAP AGAIN TO CONFIRM'
+                          : 'UNIFY THE GYRE'}
+                    </Text>
+                  </Pressable>
+                  {confirmingUnify && (
+                    <Pressable onPress={() => setConfirmingUnify(false)}>
+                      <Text style={styles.cancel}>cancel</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {game.unifies > 0 && (
+                  <>
+                    <Text style={styles.section}>
+                      META SHOP · ⦿ {formatWhole(game.singularity, notation)}
+                    </Text>
+                    {BAL.metaShop.map((def) => (
+                      <Row
+                        key={def.id}
+                        color={palette.singularity}
+                        title={def.name}
+                        subtext={def.desc}
+                        costText={`⦿ ${formatWhole(def.cost, notation)}`}
+                        affordable={game.singularity.gte(def.cost)}
+                        maxed={metaOwned(game, def.id)}
+                        onBuy={() => buyMetaUpgrade(def.id)}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              game.converges > 0 && (
+                <View style={styles.teaser}>
+                  <Text style={[styles.teaserTitle, { color: palette.singularity }]}>🔒 UNIFY</Text>
+                  <Text style={styles.teaserText}>
+                    The final layer awakens at ✧ {formatWhole(BAL.unify.unlockAeon, notation)}{' '}
+                    Aeon, once the Singularity Seed is researched. It resets everything — for a
+                    multiplier that never resets again.
+                  </Text>
+                </View>
+              )
+            )}
           </>
         ) : (
           <View style={styles.teaser}>
@@ -292,6 +394,7 @@ const styles = StyleSheet.create({
   },
   ascendCard: { borderColor: palette.prism, backgroundColor: '#1c1020', marginTop: spacing.lg },
   convergeCard: { borderColor: palette.aeon, backgroundColor: '#0d1a24', marginTop: spacing.lg },
+  unifyCard: { borderColor: palette.singularity, backgroundColor: '#221c0d', marginTop: spacing.lg },
   cardTitle: { color: palette.shard, fontSize: 12, fontWeight: '800', letterSpacing: 3 },
   gain: { color: palette.ink, fontSize: 26, fontWeight: '800', marginTop: spacing.sm, ...mono },
   gainLabel: { color: palette.shard, fontSize: 14 },

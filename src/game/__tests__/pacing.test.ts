@@ -23,9 +23,11 @@ import {
   buyShardUpgrade,
   canAscend,
   canCollapse,
+  canUnify,
   collapseGain,
   doAscend,
   doCollapse,
+  doUnify,
 } from '../systems/prestige';
 import { buyStarNode } from '../systems/starchart';
 import { buySparkUpgrade, tapPower } from '../systems/upgrades';
@@ -56,6 +58,13 @@ function secondsUntil(s: GameState, done: (s: GameState) => boolean, maxSeconds:
   }
   return -1;
 }
+
+/**
+ * These simulate tens of thousands of ticks each — well past Jest's 5s
+ * default, especially when the `core` and `app` projects run in parallel and
+ * contend for CPU. Without an explicit budget they fail intermittently.
+ */
+const PACING_TIMEOUT_MS = 120_000;
 
 describe('pacing', () => {
   it('first orbiter is reachable inside a minute of tapping', () => {
@@ -90,7 +99,7 @@ describe('pacing', () => {
     // is faster): broken if < 3 min or > 90 min from game start.
     expect(toCollapseUnlock).toBeGreaterThan(180);
     expect(toCollapseUnlock).toBeLessThan(5400);
-  });
+  }, PACING_TIMEOUT_MS);
 
   it('two hours of greedy play never poisons the state', () => {
     const s = defaultState(0);
@@ -103,7 +112,7 @@ describe('pacing', () => {
     console.log(
       `[pacing] after 2h: spark=${s.spark.toString()} boosts=${s.dimBoosts} tiers=${highestUnlockedTier(s)}/${TIER_COUNT} motes=${s.motes.toString()}`,
     );
-  });
+  }, PACING_TIMEOUT_MS);
 
   it('the collapse loop accelerates re-runs and reaches Ascend-scale shards', () => {
     const s = defaultState(0);
@@ -148,7 +157,7 @@ describe('pacing', () => {
     // no state poisoning across many resets
     expect(Number.isNaN(s.spark.mantissa)).toBe(false);
     expect(Number.isNaN(s.shards.mantissa)).toBe(false);
-  });
+  }, PACING_TIMEOUT_MS);
 
   it('the ascend loop reaches P2 and re-collapsing after it is faster', () => {
     const s = defaultState(0);
@@ -195,7 +204,47 @@ describe('pacing', () => {
     expect(reclearAt).toBeGreaterThan(0);
     expect(reclearAt).toBeLessThan(ascendAt / 2);
     expect(Number.isNaN(s.prism.mantissa)).toBe(false);
-  });
+  }, PACING_TIMEOUT_MS);
+
+  it('a fully automated endgame cycles forever without poisoning state', () => {
+    // Seed a player who has finished the tree: every auto-prestige owned, so
+    // the game plays itself. This is the §20 "you never really stop" state.
+    const s = defaultState(0);
+    s.collapses = 1;
+    s.ascends = 1;
+    s.converges = 1;
+    s.unifies = 1;
+    s.singularityEver = D(1);
+    s.metaShop = { autoAscend: true, autoConverge: true, metaEngine: true };
+    s.aeonTree = { autoCollapse: true, dimPower: true };
+    s.research = { singularitySeed: true, gyreHeart: true };
+    s.spark = D(1e6);
+
+    const HORIZON = 1800; // 30 simulated minutes is plenty to prove it cycles
+    let unifiesDone = 0;
+    for (let sec = 0; sec < HORIZON; sec++) {
+      playSecond(s, 0); // pure idle: automation does everything
+      if (canUnify(s)) {
+        doUnify(s);
+        unifiesDone += 1;
+      }
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[pacing] automated ${HORIZON / 60}min: unifies=${unifiesDone} singularityEver=${s.singularityEver.toString()} collapses=${s.collapses} ascends=${s.ascends} converges=${s.converges}`,
+    );
+
+    // The machine must actually keep turning on its own.
+    expect(s.collapses).toBeGreaterThan(1);
+    expect(s.ascends).toBeGreaterThan(1);
+    // …and nothing may go non-finite across all those nested resets.
+    for (const v of [s.spark, s.motes, s.shards, s.prism, s.aeon, s.singularity, s.ore, s.flux]) {
+      expect(Number.isNaN(v.mantissa)).toBe(false);
+      expect(v.gte(0)).toBe(true);
+    }
+    for (const d of s.dims) expect(Number.isNaN(d.amount.mantissa)).toBe(false);
+  }, PACING_TIMEOUT_MS);
 
   it('absurd wealth (1e300+) keeps ticking finitely', () => {
     const s = defaultState(0);

@@ -142,16 +142,33 @@ function FloatingNumber({ floater, onDone }: { floater: Floater; onDone(key: num
 function PrestigeFlash({ reduced }: { reduced: boolean }) {
   const collapses = useGameStore((s) => s.game.collapses);
   const ascends = useGameStore((s) => s.game.ascends);
+  const converges = useGameStore((s) => s.game.converges);
+  const unifies = useGameStore((s) => s.game.unifies);
   const anim = useRef(new Animated.Value(0)).current;
   const [color, setColor] = useState<string>(palette.shard);
-  const prev = useRef({ collapses, ascends });
+  const prev = useRef({ collapses, ascends, converges, unifies });
 
   useEffect(() => {
     const was = prev.current;
-    prev.current = { collapses, ascends };
+    prev.current = { collapses, ascends, converges, unifies };
     if (reduced) return;
-    if (collapses === was.collapses && ascends === was.ascends) return;
-    setColor(ascends > was.ascends ? palette.prism : palette.shard);
+    if (
+      collapses === was.collapses &&
+      ascends === was.ascends &&
+      converges === was.converges &&
+      unifies === was.unifies
+    )
+      return;
+    // Deepest layer wins the flash: Unify white-out > Converge > Ascend > Collapse (§12).
+    setColor(
+      unifies > was.unifies
+        ? '#ffffff'
+        : converges > was.converges
+          ? palette.aeon
+          : ascends > was.ascends
+            ? palette.prism
+            : palette.shard,
+    );
     anim.setValue(0.9);
     Animated.timing(anim, {
       toValue: 0,
@@ -159,7 +176,7 @@ function PrestigeFlash({ reduced }: { reduced: boolean }) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: NATIVE,
     }).start();
-  }, [collapses, ascends, anim, reduced]);
+  }, [collapses, ascends, converges, unifies, anim, reduced]);
 
   return (
     <Animated.View

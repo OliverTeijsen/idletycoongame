@@ -55,6 +55,14 @@ export function ResourceBar() {
           <Text style={styles.rate}>+{format(oreRate(game), { notation, small: true })}/s</Text>
         </View>
       )}
+      {game.unifies > 0 && (
+        <View style={styles.entry}>
+          <Text style={[styles.value, { color: palette.singularity }]}>
+            ⦿ {format(game.singularity, { notation })}
+          </Text>
+          <Text style={styles.rate}>on Unify</Text>
+        </View>
+      )}
     </View>
   );
 }

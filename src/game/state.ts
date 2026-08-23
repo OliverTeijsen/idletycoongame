@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 4;
+export const CURRENT_VERSION = 5;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -59,6 +59,11 @@ export function defaultState(now: number = Date.now()): GameState {
     boostRemaining: 0,
 
     boostSlots: [],
+
+    singularity: ZERO,
+    singularityEver: ZERO,
+    unifies: 0,
+    metaShop: {},
 
     starChart: {},
 

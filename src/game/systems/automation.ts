@@ -11,7 +11,17 @@
 import { GameState } from '../types';
 import { buyDim, canDimBoost, doDimBoost } from './dimensions';
 import { buyMoteUpgrade } from './motes';
-import { canCollapse, collapseGain, doCollapse } from './prestige';
+import {
+  ascendGain,
+  canAscend,
+  canCollapse,
+  canConverge,
+  collapseGain,
+  convergeGain,
+  doAscend,
+  doCollapse,
+  doConverge,
+} from './prestige';
 import { autobuyInterval } from './shardperks';
 import { starAutobuyTier } from './starchart';
 import { buySparkUpgrade } from './upgrades';
@@ -30,6 +40,8 @@ export const AUTOMATION_IDS = [
   'moteUpgrades',
   'dimBoost',
   'autoCollapse',
+  'autoAscend',
+  'autoConverge',
 ] as const;
 export type AutomationId = (typeof AUTOMATION_IDS)[number];
 
@@ -46,6 +58,9 @@ export function autobuyerAvailable(state: GameState, id: AutomationId): boolean 
   if (!automationUnlocked(state)) return false;
   // Auto-Collapse is a structural Aeon-tree perk, not a P2 unlock.
   if (id === 'autoCollapse') return state.aeonTree['autoCollapse'] === true;
+  // Auto-prestige of the deeper layers comes from the Meta Shop (P4).
+  if (id === 'autoAscend') return state.metaShop['autoAscend'] === true;
+  if (id === 'autoConverge') return state.metaShop['autoConverge'] === true;
   if (state.ascends > 0) return true;
   if (id === 'dim4') return starAutobuyTier(state, 4);
   if (id === 'dim5' || id === 'dim6' || id === 'dim7' || id === 'dim8' || id === 'dimBoost')
@@ -99,17 +114,37 @@ function runAutobuyPass(state: GameState): void {
     doDimBoost(state);
   }
 
-  // Auto-Collapse: same rule as a sensible player — collapse when the gain
-  // is a meaningful step up. Never during a challenge run (it would wipe the
-  // run's progress toward the goal).
-  if (
-    autobuyerAvailable(state, 'autoCollapse') &&
-    autobuyerEnabled(state, 'autoCollapse') &&
-    state.activeChallenge === null &&
-    canCollapse(state)
-  ) {
-    const gain = collapseGain(state);
-    if (state.collapses === 0 || gain.gte(state.shards.add(1).mul(0.25))) doCollapse(state);
+  // Auto-prestige, deepest layer first so a shallow reset never wastes a
+  // deep one queued in the same pass. All share the sensible-player rule:
+  // reset when the gain is a meaningful step up (or the first time). Never
+  // during a challenge run (it would wipe progress toward the goal).
+  if (state.activeChallenge === null) {
+    if (
+      autobuyerAvailable(state, 'autoConverge') &&
+      autobuyerEnabled(state, 'autoConverge') &&
+      canConverge(state)
+    ) {
+      const gain = convergeGain(state);
+      if (state.converges === 0 || gain.gte(state.aeonEver.mul(0.25))) doConverge(state);
+    }
+
+    if (
+      autobuyerAvailable(state, 'autoAscend') &&
+      autobuyerEnabled(state, 'autoAscend') &&
+      canAscend(state)
+    ) {
+      const gain = ascendGain(state);
+      if (state.ascends === 0 || gain.gte(state.prism.add(1).mul(0.25))) doAscend(state);
+    }
+
+    if (
+      autobuyerAvailable(state, 'autoCollapse') &&
+      autobuyerEnabled(state, 'autoCollapse') &&
+      canCollapse(state)
+    ) {
+      const gain = collapseGain(state);
+      if (state.collapses === 0 || gain.gte(state.shards.add(1).mul(0.25))) doCollapse(state);
+    }
   }
 
   if (autobuyerAvailable(state, 'sparkUpgrades') && autobuyerEnabled(state, 'sparkUpgrades')) {

@@ -79,6 +79,18 @@ function researchGlobal(state: GameState): Decimal {
   return state.research['gyreHeart'] ? D(2) : ONE;
 }
 
+/**
+ * Singularity multiplier: ×10 per lifetime Singularity (plus the Singular
+ * Engine), persisting across EVERY reset — singularityEver never resets.
+ * Exponent clamped against tampered saves; legit play earns a handful.
+ */
+export function singularityMult(state: GameState): Decimal {
+  const n = Math.min(1e3, Math.max(0, state.singularityEver.toNumber()));
+  let m = BAL.unify.multPer.pow(n);
+  if (state.metaShop['metaEngine']) m = m.mul(3);
+  return cleanMul(m);
+}
+
 /** Global production multiplier applied to every tier's output. */
 export function globalMult(state: GameState): Decimal {
   // Dim challenge: the global multiplier is forced to ×1 during the run.
@@ -90,7 +102,8 @@ export function globalMult(state: GameState): Decimal {
       .mul(researchGlobal(state))
       .mul(shardMult(state))
       .mul(prismMult(state))
-      .mul(amplifyMult(state)),
+      .mul(amplifyMult(state))
+      .mul(singularityMult(state)),
   );
 }
 
@@ -185,6 +198,7 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
     { label: 'Prism', value: prismMult(state) },
     { label: 'Prism grid', value: amplifyMult(state) },
     { label: 'Aeon', value: aeonMult(state) },
+    { label: 'Singularity', value: singularityMult(state) },
     { label: 'Managers', value: kindlerMult(state) },
     { label: 'Flux boost', value: fluxBoostMult(state) },
     { label: 'Global (total)', value: globalMult(state) },
