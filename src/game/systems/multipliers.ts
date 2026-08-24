@@ -36,7 +36,7 @@ import {
 } from './challengeperks';
 import { elementGlobalMult, elementSparkMult, elementSpeedMult } from './elements';
 import { kindlerMult } from './managers';
-import { fluxBoostMult } from './timeflux';
+import { fluxBoostMult, rewardBoostMult } from './timeflux';
 
 /**
  * Shard multiplier: softcap(1 + 0.25·shardsEver). Computed every time — never
@@ -105,7 +105,8 @@ export function globalMult(state: GameState): Decimal {
       .mul(shardMult(state))
       .mul(prismMult(state))
       .mul(amplifyMult(state))
-      .mul(singularityMult(state)),
+      .mul(singularityMult(state))
+      .mul(rewardBoostMult(state)),
   );
 }
 
@@ -204,6 +205,7 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
     { label: 'Singularity', value: singularityMult(state) },
     { label: 'Managers', value: kindlerMult(state) },
     { label: 'Flux boost', value: fluxBoostMult(state) },
+    { label: 'Rewarded boost', value: rewardBoostMult(state) },
     { label: 'Global (total)', value: globalMult(state) },
   ];
 }

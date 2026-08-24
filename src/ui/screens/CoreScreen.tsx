@@ -1,9 +1,10 @@
 /** Core tab: stage, buy-amount toggle, dimension chain, spark upgrades, boost. */
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
-import { format, formatWhole } from '../../game/numbers';
+import { format, formatTime, formatWhole } from '../../game/numbers';
+import { adService } from '../../services/ads';
 import {
   canDimBoost,
   dimBoostRequirementText,
@@ -49,6 +50,8 @@ export function CoreScreen() {
           </Pressable>
         ))}
       </View>
+
+      <RewardedBoostCard />
 
       <Text style={styles.section}>ORBITERS</Text>
       {game.dims.map((d, i) => {
@@ -109,8 +112,58 @@ export function CoreScreen() {
   );
 }
 
+/**
+ * MONETIZATION CALL SITE (spec §15): rewarded "×2 production for 15 min".
+ * Renders only while an ad is actually available, or while the boost it
+ * granted is still running — never as a dead button.
+ */
+function RewardedBoostCard() {
+  const remaining = useGameStore((s) => s.game.rewardBoostRemaining);
+  const watchRewarded = useGameStore((s) => s.watchRewarded);
+  const [busy, setBusy] = useState(false);
+
+  const active = remaining > 0;
+  const offered = adService.isAvailable('production');
+  if (!active && !offered) return null;
+
+  return (
+    <Pressable
+      style={[styles.reward, active && styles.rewardActive]}
+      disabled={busy || active}
+      onPress={async () => {
+        setBusy(true);
+        await watchRewarded('production');
+        setBusy(false);
+      }}
+    >
+      <Text style={styles.rewardTitle}>
+        {active
+          ? `×${BAL.rewards.production.mult.toString()} PRODUCTION · ${formatTime(remaining)} left`
+          : `▶  Watch an ad for ×${BAL.rewards.production.mult.toString()} production`}
+      </Text>
+      {!active && (
+        <Text style={styles.rewardSub}>
+          {busy ? 'loading…' : `lasts ${formatTime(BAL.rewards.production.seconds)}`}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
+  reward: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.orbiter,
+    backgroundColor: '#0c2226',
+    padding: spacing.md,
+    marginTop: spacing.md,
+    alignItems: 'center',
+  },
+  rewardActive: { borderColor: palette.core, backgroundColor: '#241a0d' },
+  rewardTitle: { color: palette.ink, fontSize: 13, fontWeight: '800' },
+  rewardSub: { color: palette.dim, fontSize: 11, marginTop: 2 },
   section: {
     color: palette.dim,
     fontSize: 11,

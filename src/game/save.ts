@@ -67,6 +67,7 @@ interface SavedGame {
   flux: string;
   warpRemaining: number;
   boostRemaining: number;
+  rewardBoostRemaining: number;
   boostSlots: string[];
   singularity: string;
   singularityEver: string;
@@ -88,6 +89,7 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   3: (old) => old,
   4: (old) => old,
   5: (old) => old,
+  6: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +245,7 @@ export function serializeState(state: GameState): string {
     flux: decToString(state.flux),
     warpRemaining: state.warpRemaining,
     boostRemaining: state.boostRemaining,
+    rewardBoostRemaining: state.rewardBoostRemaining,
     boostSlots: [...state.boostSlots],
     singularity: decToString(state.singularity),
     singularityEver: decToString(state.singularityEver),
@@ -356,6 +359,7 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     // cannot smuggle in a year of warp.
     warpRemaining: Math.min(num(saved.warpRemaining, 0, 0), 86400),
     boostRemaining: Math.min(num(saved.boostRemaining, 0, 0), 86400),
+    rewardBoostRemaining: Math.min(num(saved.rewardBoostRemaining, 0, 0), 86400),
     boostSlots: slotsOf(saved.boostSlots),
 
     singularity: decFromString(saved.singularity ?? '0'),
@@ -369,6 +373,9 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
       notation: notationOf(rawOptions.notation),
       reducedMotion: bool(rawOptions.reducedMotion, fresh.options.reducedMotion),
       confirmResets: bool(rawOptions.confirmResets, fresh.options.confirmResets),
+      muted: bool(rawOptions.muted, fresh.options.muted),
+      volume: Math.min(1, Math.max(0, num(rawOptions.volume, fresh.options.volume))),
+      showOfflineSummary: bool(rawOptions.showOfflineSummary, fresh.options.showOfflineSummary),
     },
   };
 }

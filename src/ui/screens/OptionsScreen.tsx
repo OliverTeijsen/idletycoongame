@@ -9,6 +9,12 @@ import { mono, palette, spacing } from '../theme';
 
 const NOTATIONS: NotationMode[] = ['standard', 'scientific', 'engineering'];
 
+const VOLUMES = [
+  { label: 'quiet', value: 0.3 },
+  { label: 'normal', value: 0.7 },
+  { label: 'loud', value: 1 },
+];
+
 export function OptionsScreen() {
   const game = useGameStore((s) => s.game);
   const setOptions = useGameStore((s) => s.setOptions);
@@ -47,6 +53,43 @@ export function OptionsScreen() {
         value={game.options.confirmResets}
         onToggle={(v) => setOptions({ confirmResets: v })}
       />
+      <ToggleRow
+        label="Offline summary on resume"
+        value={game.options.showOfflineSummary}
+        onToggle={(v) => setOptions({ showOfflineSummary: v })}
+      />
+
+      <Text style={styles.section}>SOUND</Text>
+      <ToggleRow
+        label="Muted"
+        value={game.options.muted}
+        onToggle={(v) => setOptions({ muted: v })}
+      />
+      <View style={styles.rowGroup}>
+        {VOLUMES.map((v) => (
+          <Pressable
+            key={v.label}
+            onPress={() => setOptions({ volume: v.value, muted: false })}
+            style={[
+              styles.chip,
+              !game.options.muted &&
+                Math.abs(game.options.volume - v.value) < 0.01 &&
+                styles.chipActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                !game.options.muted &&
+                  Math.abs(game.options.volume - v.value) < 0.01 &&
+                  styles.chipTextActive,
+              ]}
+            >
+              {v.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       <Text style={styles.section}>SAVE</Text>
       <Pressable style={styles.button} onPress={() => setExported(exportSave(game))}>

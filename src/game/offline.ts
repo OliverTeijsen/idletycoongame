@@ -24,6 +24,8 @@ export interface OfflineSummary {
   motesGained: Decimal;
   oreGained: Decimal;
   fluxGained: Decimal;
+  /** True once the rewarded double-offline has been applied. */
+  doubled: boolean;
 }
 
 export function offlineCapSeconds(state: GameState): number {
@@ -40,6 +42,37 @@ export function offlineCapSeconds(state: GameState): number {
  * there is nothing worth showing (< 10s away).
  */
 export function applyOffline(state: GameState, elapsedSeconds: number): OfflineSummary | null {
+  return simulateOffline(state, elapsedSeconds);
+}
+
+/**
+ * Grant the rewarded "double offline" (spec §15): pay out the same summary a
+ * second time. Takes the ORIGINAL summary so the doubling is exactly what the
+ * player was shown — re-simulating would compound the first grant and pay out
+ * more than double.
+ */
+export function grantDoubleOffline(state: GameState, summary: OfflineSummary): OfflineSummary {
+  const extraSpark = summary.sparkGained.mul(BAL.rewards.offlineMult.sub(1));
+  const extraMotes = summary.motesGained.mul(BAL.rewards.offlineMult.sub(1));
+  const extraOre = summary.oreGained.mul(BAL.rewards.offlineMult.sub(1));
+
+  state.spark = clean(state.spark.add(extraSpark));
+  state.totalSpark = clean(state.totalSpark.add(extraSpark));
+  if (state.spark.gt(state.bestSparkRun)) state.bestSparkRun = state.spark;
+  state.motes = clean(state.motes.add(extraMotes));
+  state.motesEver = clean(state.motesEver.add(extraMotes));
+  state.ore = clean(state.ore.add(extraOre));
+
+  return {
+    ...summary,
+    sparkGained: summary.sparkGained.add(extraSpark),
+    motesGained: summary.motesGained.add(extraMotes),
+    oreGained: summary.oreGained.add(extraOre),
+    doubled: true,
+  };
+}
+
+function simulateOffline(state: GameState, elapsedSeconds: number): OfflineSummary | null {
   const cap = offlineCapSeconds(state);
   const clamped = Math.min(Math.max(0, elapsedSeconds), cap);
   if (clamped < 10) return null;
@@ -62,5 +95,6 @@ export function applyOffline(state: GameState, elapsedSeconds: number): OfflineS
     motesGained: state.motes.sub(motesBefore),
     oreGained: state.ore.sub(oreBefore),
     fluxGained,
+    doubled: false,
   };
 }

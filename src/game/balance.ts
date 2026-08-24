@@ -502,6 +502,19 @@ export const BAL = {
     ] as ManagerDef[],
   },
 
+  /**
+   * Rewarded boosts (spec §15). The GAME defines what the reward is; the ad
+   * SDK only decides whether it was earned. That split is deliberate — the
+   * core stays playable, testable and ad-free, and `monetization` gating
+   * lives entirely in the service layer.
+   */
+  rewards: {
+    /** Rewarded "×2 production for 15 min" — mirrors a Boost Manager. */
+    production: { mult: D(2), seconds: 900 },
+    /** Rewarded "double offline" on the away summary. */
+    offlineMult: D(2),
+  },
+
   /** Time Flux (spec §8.6): offline overflow banks as Flux once P3 is reached. */
   timeflux: {
     fluxPerOverflowMinute: D(1),

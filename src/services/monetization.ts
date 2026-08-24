@@ -14,9 +14,34 @@
 export const MONETIZATION_ENABLED = false;
 
 export const ADMOB = {
-  /** GYRE Android app — provided by Oliver 2026-08-24. */
+  /**
+   * GYRE Android app. Also set in app.json's config plugin, which is what
+   * writes it into the AndroidManifest — both must stay in sync.
+   */
   androidAppId: 'ca-app-pub-9525292071323030~3914844171',
-  /** TODO(Phase 9): create in AdMob console. */
+
+  /**
+   * REWARDED ad unit ids. Both are still empty, which is why no "watch an
+   * ad" button renders anywhere: `adService.isAvailable()` returns false for
+   * an unconfigured slot, and the call sites hide themselves rather than
+   * showing a button that cannot pay out.
+   *
+   * To fill these in: AdMob console → your GYRE app → Ad units → Add ad unit
+   * → **Rewarded** → create two (one per slot below) → paste the
+   * `ca-app-pub-…/…` ids here, then flip MONETIZATION_ENABLED to true and
+   * run `npm run build:apk`. Ads need a native build; they cannot work on
+   * web or in Expo Go.
+   */
   rewardedProductionBoost: '',
   rewardedDoubleOffline: '',
+} as const;
+
+/**
+ * Google's official always-fill TEST ids. Swap these in temporarily to prove
+ * the whole flow works on a device before your real units are approved —
+ * never ship them, and never click your own live ads (that is what gets an
+ * AdMob account banned).
+ */
+export const ADMOB_TEST_IDS = {
+  rewarded: 'ca-app-pub-3940256099942544/5224354917',
 } as const;

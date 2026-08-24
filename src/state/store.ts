@@ -8,8 +8,11 @@
  */
 import { create } from 'zustand';
 
+import { playCue, setMuted, setVolume } from '../audio';
 import { tick } from '../game/loop';
-import { applyOffline, OfflineSummary } from '../game/offline';
+import { applyOffline, grantDoubleOffline, OfflineSummary } from '../game/offline';
+import { grantRewardBoost } from '../game/systems/timeflux';
+import { adService, RewardSlot } from '../services/ads';
 import { defaultState } from '../game/state';
 import { AutomationId, toggleAutobuyer } from '../game/systems/automation';
 import { enterChallenge, exitChallenge } from '../game/systems/challenges';
@@ -78,11 +81,23 @@ interface GameStore {
   dismissOffline(): void;
   /** Drop one toasted achievement off the transient queue. */
   dismissAchievement(id: string): void;
+  /**
+   * Offer a rewarded ad for `slot`. Resolves true when the reward was
+   * actually earned; the reward itself is applied here, never by the ad
+   * layer (spec §15).
+   */
+  watchRewarded(slot: RewardSlot): Promise<boolean>;
 }
 
 /** Shallow-copy the state so zustand subscribers see a new reference. */
 function republish(game: GameState): GameState {
   return { ...game };
+}
+
+/** Push persisted audio preferences into the (module-level) sound layer. */
+function syncAudio(game: GameState): void {
+  setMuted(game.options.muted);
+  setVolume(game.options.volume);
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -98,10 +113,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tap() {
     const game = get().game;
-    game.spark = game.spark.add(tapPower(game));
-    game.totalSpark = game.totalSpark.add(tapPower(game));
+    const gain = tapPower(game);
+    game.spark = game.spark.add(gain);
+    game.totalSpark = game.totalSpark.add(gain);
     if (game.spark.gt(game.bestSparkRun)) game.bestSparkRun = game.spark;
     game.totalTaps += 1;
+    playCue('tap');
     set({ game: republish(game) });
   },
 
@@ -123,6 +140,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dimBoost() {
     const game = get().game;
     if (doDimBoost(game)) {
+      playCue('prestige');
       set({ game: republish(game) });
       get().save();
     }
@@ -131,6 +149,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   collapse() {
     const game = get().game;
     if (doCollapse(game)) {
+      playCue('prestige');
       set({ game: republish(game) });
       get().save();
     }
@@ -139,6 +158,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ascend() {
     const game = get().game;
     if (doAscend(game)) {
+      playCue('prestige');
       set({ game: republish(game) });
       get().save();
     }
@@ -147,6 +167,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   converge() {
     const game = get().game;
     if (doConverge(game)) {
+      playCue('prestige');
       set({ game: republish(game) });
       get().save();
     }
@@ -155,6 +176,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   unify() {
     const game = get().game;
     if (doUnify(game)) {
+      playCue('prestige');
       set({ game: republish(game) });
       get().save();
     }
@@ -265,6 +287,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setOptions(patch) {
     const game = get().game;
     game.options = { ...game.options, ...patch };
+    if (patch.muted !== undefined) setMuted(patch.muted);
+    if (patch.volume !== undefined) setVolume(patch.volume);
     set({ game: republish(game) });
     get().save();
   },
@@ -272,11 +296,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   init(now = Date.now()) {
     const loaded = loadGame(now);
     if (!loaded) {
-      set({ game: defaultState(now), offlineSummary: null });
+      const fresh = defaultState(now);
+      syncAudio(fresh);
+      set({ game: fresh, offlineSummary: null });
       return;
     }
+    syncAudio(loaded);
     const summary = applyOffline(loaded, (now - loaded.savedAt) / 1000);
-    set({ game: republish(loaded), offlineSummary: summary });
+    set({
+      game: republish(loaded),
+      // The gains are still granted when the summary is hidden — the option
+      // only controls whether the modal interrupts you on resume.
+      offlineSummary: loaded.options.showOfflineSummary ? summary : null,
+    });
   },
 
   save(now = Date.now()) {
@@ -304,5 +336,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!game.pendingAchievements.includes(id)) return;
     game.pendingAchievements = game.pendingAchievements.filter((a) => a !== id);
     set({ game: republish(game) });
+  },
+
+  async watchRewarded(slot) {
+    const earned = await adService.showRewarded(slot);
+    if (!earned) return false;
+    const game = get().game;
+    if (slot === 'production') {
+      grantRewardBoost(game);
+      set({ game: republish(game) });
+    } else {
+      const summary = get().offlineSummary;
+      // Only ever doubles a summary that is still on screen, and only once.
+      if (!summary || summary.doubled) return false;
+      const doubled = grantDoubleOffline(game, summary);
+      set({ game: republish(game), offlineSummary: doubled });
+    }
+    get().save();
+    return true;
   },
 }));

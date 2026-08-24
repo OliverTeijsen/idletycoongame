@@ -8,7 +8,9 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#071011",
     "primaryColor": "#ffbf5c",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "bundleIdentifier": "com.ohastudios.gyre",
       "supportsTablet": false,
@@ -17,6 +19,14 @@
     "android": {
       "package": "com.ohastudios.gyre"
     },
-    "plugins": ["expo-status-bar"]
+    "plugins": [
+      "expo-status-bar",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-9525292071323030~3914844171"
+        }
+      ]
+    ]
   }
 }

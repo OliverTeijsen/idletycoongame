@@ -6,6 +6,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 
+import { playCue } from '../../audio';
 import { achievementDef } from '../../game/systems/achievements';
 import { useGameStore } from '../../state/store';
 import { palette, spacing } from '../theme';
@@ -18,6 +19,7 @@ function Toast({ id, reduced }: { id: string; reduced: boolean }) {
   const def = achievementDef(id);
 
   useEffect(() => {
+    playCue('achievement');
     if (reduced) {
       const t = setTimeout(() => dismiss(id), 2600);
       return () => clearTimeout(t);

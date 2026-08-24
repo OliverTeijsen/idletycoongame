@@ -25,6 +25,11 @@ export interface GameOptions {
   notation: NotationMode;
   reducedMotion: boolean;
   confirmResets: boolean;
+  muted: boolean;
+  /** 0..1. */
+  volume: number;
+  /** Show the "while you were away" summary on resume. */
+  showOfflineSummary: boolean;
 }
 
 export interface GameState {
@@ -92,6 +97,8 @@ export interface GameState {
   warpRemaining: number;
   /** Real seconds of the Spark flux-boost left. */
   boostRemaining: number;
+  /** Real seconds of the rewarded ×2 production boost left (spec §15). */
+  rewardBoostRemaining: number;
 
   // Boost Managers: assigned ids, at most slot count
   boostSlots: string[];

@@ -18,7 +18,14 @@ describe('roundtrip', () => {
     s.motes = D(123.5);
     s.motesEver = D(500);
     s.moteUpgrades = { focus: 3 };
-    s.options = { notation: 'scientific', reducedMotion: true, confirmResets: false };
+    s.options = {
+      notation: 'scientific',
+      reducedMotion: true,
+      confirmResets: false,
+      muted: true,
+      volume: 0.3,
+      showOfflineSummary: false,
+    };
     s.timePlayed = 5432;
 
     s.shards = D(77);

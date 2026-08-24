@@ -52,4 +52,25 @@ export function startFluxBoost(state: GameState): boolean {
 export function tickTimers(state: GameState, realDt: number): void {
   if (state.warpRemaining > 0) state.warpRemaining = Math.max(0, state.warpRemaining - realDt);
   if (state.boostRemaining > 0) state.boostRemaining = Math.max(0, state.boostRemaining - realDt);
+  if (state.rewardBoostRemaining > 0) {
+    state.rewardBoostRemaining = Math.max(0, state.rewardBoostRemaining - realDt);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rewarded boost (spec §15) — granted by the ad service, owned by the core
+// ---------------------------------------------------------------------------
+
+/**
+ * Grant the rewarded production boost. Extends an active one rather than
+ * replacing it, so a second reward is never wasted. Available at any layer —
+ * unlike Flux, this is not gated on P3.
+ */
+export function grantRewardBoost(state: GameState): void {
+  state.rewardBoostRemaining += BAL.rewards.production.seconds;
+}
+
+/** Global multiplier from an active rewarded boost. */
+export function rewardBoostMult(state: GameState): Decimal {
+  return state.rewardBoostRemaining > 0 ? BAL.rewards.production.mult : ONE;
 }
