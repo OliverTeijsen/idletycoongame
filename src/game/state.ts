@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -64,6 +64,9 @@ export function defaultState(now: number = Date.now()): GameState {
     singularityEver: ZERO,
     unifies: 0,
     metaShop: {},
+
+    achievements: {},
+    pendingAchievements: [],
 
     starChart: {},
 

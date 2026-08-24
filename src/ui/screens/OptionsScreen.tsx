@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { formatTime } from '../../game/numbers';
 import { NotationMode } from '../../game/types';
 import { exportSave, importSave } from '../../services/storage';
 import { useGameStore } from '../../state/store';
@@ -88,11 +87,6 @@ export function OptionsScreen() {
         <Text style={styles.buttonText}>Import save</Text>
       </Pressable>
       {importError && <Text style={styles.error}>That is not a valid save.</Text>}
-
-      <Text style={styles.section}>STATS</Text>
-      <Text style={styles.stat}>Time played: {formatTime(game.timePlayed)}</Text>
-      <Text style={styles.stat}>Total taps: {game.totalTaps}</Text>
-      <Text style={styles.stat}>Dimension boosts: {game.dimBoosts}</Text>
 
       <Text style={styles.section}>DANGER</Text>
       {!confirmReset ? (

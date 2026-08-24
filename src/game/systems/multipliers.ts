@@ -27,6 +27,7 @@ import { D, Decimal, ONE, cleanMul, softcap } from '../numbers';
 import { GameState } from '../types';
 import { sparkUpgradeDef, sparkUpgradeLevel, upgradeMult } from './upgrades';
 import { moteUpgradeDef, moteUpgradeLevel } from './motes';
+import { achievementMult } from './achievements';
 import { starGlobalMult, starSpeedMult, starTierMult } from './starchart';
 import {
   challengeActive,
@@ -97,7 +98,8 @@ export function globalMult(state: GameState): Decimal {
   if (challengeActive(state, 'dim')) return ONE;
   // §9 composition order — append-only as layers unlock.
   return cleanMul(
-    starGlobalMult(state)
+    achievementMult(state)
+      .mul(starGlobalMult(state))
       .mul(elementGlobalMult(state))
       .mul(researchGlobal(state))
       .mul(shardMult(state))
@@ -187,6 +189,7 @@ export interface MultBreakdownEntry {
 /** Stats-screen breakdown (spec §11) — every source visible, for players and balancing. */
 export function multBreakdown(state: GameState): MultBreakdownEntry[] {
   return [
+    { label: 'Achievements', value: achievementMult(state) },
     { label: 'Dimension Boosts', value: BAL.dimBoost.mult.pow(state.dimBoosts) },
     { label: 'Spark upgrades', value: sparkMult(state) },
     { label: 'Orbit speed', value: speedMult(state) },

@@ -3,6 +3,7 @@ import { tick } from '../loop';
 import { D, ONE, ZERO } from '../numbers';
 import { applyOffline, offlineCapSeconds } from '../offline';
 import { defaultState } from '../state';
+import { ACHIEVEMENTS } from '../systems/achievements';
 import { kindlerMult, seerCapMult, toggleManager, wardenSpeed, weaverMult } from '../systems/managers';
 import { sparkMult } from '../systems/multipliers';
 import { fluxFromOverflow, startFluxBoost, startWarp } from '../systems/timeflux';
@@ -44,6 +45,12 @@ describe('warp & boost', () => {
     warped.warpRemaining = 100;
     const plain = p3();
     plain.dims[0].amount = D(100);
+    // Pre-earn every achievement on both so neither picks up an achievement
+    // multiplier the other lacks mid-run (the warped state would otherwise
+    // earn "Fast Forward" and out-produce by an extra 1%).
+    for (const s of [warped, plain]) {
+      for (const def of ACHIEVEMENTS) s.achievements[def.id] = true;
+    }
     for (let i = 0; i < 20; i++) {
       tick(warped, 1 / 20);
       tick(plain, 1 / 20);

@@ -102,6 +102,11 @@ export interface GameState {
   unifies: number;
   metaShop: Record<string, boolean>;
 
+  // Achievements: id -> earned. Never reset by anything.
+  achievements: Record<string, boolean>;
+  /** Transient toast queue for newly earned achievements — not saved. */
+  pendingAchievements: string[];
+
   // Star Chart: nodeId -> active
   starChart: Record<string, boolean>;
 

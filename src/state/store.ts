@@ -76,6 +76,8 @@ interface GameStore {
   hardReset(): void;
   importState(state: GameState): void;
   dismissOffline(): void;
+  /** Drop one toasted achievement off the transient queue. */
+  dismissAchievement(id: string): void;
 }
 
 /** Shallow-copy the state so zustand subscribers see a new reference. */
@@ -295,5 +297,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   dismissOffline() {
     set({ offlineSummary: null });
+  },
+
+  dismissAchievement(id) {
+    const game = get().game;
+    if (!game.pendingAchievements.includes(id)) return;
+    game.pendingAchievements = game.pendingAchievements.filter((a) => a !== id);
+    set({ game: republish(game) });
   },
 }));

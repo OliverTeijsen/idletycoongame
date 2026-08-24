@@ -112,6 +112,18 @@ export interface MetaUpgradeDef {
   cost: Decimal; // in Singularity
 }
 
+/**
+ * Achievement (spec §8.5). `check` is a pure predicate over GameState,
+ * evaluated in the tick's unlock step (already-earned ones are skipped).
+ * Grouped only for the UI grid.
+ */
+export interface AchievementDef {
+  id: string;
+  name: string;
+  desc: string;
+  group: 'spark' | 'orbiters' | 'motes' | 'prestige' | 'depths' | 'mastery';
+}
+
 export interface ElementDef {
   id: ElementId;
   symbol: string;
@@ -505,6 +517,14 @@ export const BAL = {
    * every reset, plus the Meta Shop.
    */
   unify: { unlockAeon: D(10), coef: D(5), exp: 0.5, multPer: D(10) },
+
+  /**
+   * Achievements (spec §8.5): a small, always-relevant global boost that
+   * rewards natural play. Multiplier = 1 + multPer · unlockedCount.
+   * The definitions (with their predicates) live in systems/achievements.ts;
+   * only the tunables live here.
+   */
+  achievements: { multPer: 0.01 },
 
   /** Meta Shop: permanent QoL + automation-of-prestiges. */
   metaShop: [

@@ -18,6 +18,7 @@ import { motesUnlocked } from '../game/systems/motes';
 import { collapseUnlocked } from '../game/systems/prestige';
 import { starChartUnlocked } from '../game/systems/starchart';
 import { useGameStore } from '../state/store';
+import { AchievementToasts } from './components/AchievementToast';
 import { OfflineModal } from './components/OfflineModal';
 import { ResourceBar } from './components/ResourceBar';
 import { AutoScreen } from './screens/AutoScreen';
@@ -29,6 +30,7 @@ import { MotesScreen } from './screens/MotesScreen';
 import { OptionsScreen } from './screens/OptionsScreen';
 import { PrestigeScreen } from './screens/PrestigeScreen';
 import { StarChartScreen } from './screens/StarChartScreen';
+import { StatsScreen } from './screens/StatsScreen';
 import { MAX_CONTENT_WIDTH, palette, spacing } from './theme';
 
 type TabId =
@@ -40,6 +42,7 @@ type TabId =
   | 'challenges'
   | 'mine'
   | 'auto'
+  | 'stats'
   | 'options';
 
 export default function App() {
@@ -85,6 +88,18 @@ export default function App() {
   const showMine = mineralsUnlocked(game);
   const showAuto = automationUnlocked(game);
 
+  // §11: always show exactly one locked teaser — the nearest thing the
+  // player has not reached yet — so there is always a visible next goal.
+  const nextGoal = !showPrestige
+    ? { label: 'COLLAPSE', hint: `✦ ${format(BAL.collapse.unlockSpark)}` }
+    : !showElements
+      ? { label: 'ASCEND', hint: `◆ ${format(BAL.ascend.unlockShards)}` }
+      : !showMine
+        ? { label: 'CONVERGE', hint: `▲ ${format(BAL.converge.unlockPrism)}` }
+        : game.unifies === 0
+          ? { label: 'UNIFY', hint: `✧ ${format(BAL.unify.unlockAeon)}` }
+          : null;
+
   // A tab can disappear on hard reset — fall back to Core.
   const activeTab: TabId =
     (tab === 'motes' && !showMotes) ||
@@ -112,6 +127,7 @@ export default function App() {
             {activeTab === 'challenges' && <ChallengesScreen />}
             {activeTab === 'mine' && <MineScreen />}
             {activeTab === 'auto' && <AutoScreen />}
+            {activeTab === 'stats' && <StatsScreen />}
             {activeTab === 'options' && <OptionsScreen />}
           </View>
           <ScrollView
@@ -122,20 +138,21 @@ export default function App() {
           >
             <Tab label="CORE" active={activeTab === 'core'} onPress={() => setTab('core')} />
             {showMotes && <Tab label="MOTES" active={activeTab === 'motes'} onPress={() => setTab('motes')} />}
-            {showPrestige ? (
+            {showPrestige && (
               <Tab label="PRESTIGE" active={activeTab === 'prestige'} onPress={() => setTab('prestige')} />
-            ) : (
-              <Tab label="COLLAPSE" locked lockHint={`✦ ${format(BAL.collapse.unlockSpark)}`} />
             )}
             {showChart && <Tab label="CHART" active={activeTab === 'chart'} onPress={() => setTab('chart')} />}
             {showElements && <Tab label="ELEMENTS" active={activeTab === 'elements'} onPress={() => setTab('elements')} />}
             {showChallenges && <Tab label="TRIALS" active={activeTab === 'challenges'} onPress={() => setTab('challenges')} />}
             {showMine && <Tab label="MINE" active={activeTab === 'mine'} onPress={() => setTab('mine')} />}
             {showAuto && <Tab label="AUTO" active={activeTab === 'auto'} onPress={() => setTab('auto')} />}
+            {nextGoal && <Tab label={nextGoal.label} locked lockHint={nextGoal.hint} />}
+            <Tab label="STATS" active={activeTab === 'stats'} onPress={() => setTab('stats')} />
             <Tab label="OPTIONS" active={activeTab === 'options'} onPress={() => setTab('options')} />
           </ScrollView>
         </View>
         <OfflineModal />
+        <AchievementToasts />
       </SafeAreaView>
     </SafeAreaProvider>
   );

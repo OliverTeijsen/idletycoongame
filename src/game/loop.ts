@@ -11,6 +11,7 @@
  */
 import { BAL } from './balance';
 import { clean } from './numbers';
+import { checkAchievements } from './systems/achievements';
 import { tickAutomation } from './systems/automation';
 import { checkChallengeCompletion } from './systems/challenges';
 import { tickDimensions } from './systems/dimensions';
@@ -39,9 +40,10 @@ export function tick(state: GameState, dt: number): void {
   // 2. Autobuyers (P1+): rule-based purchases after production.
   tickAutomation(state, dt);
 
-  // 3. Unlock/progress checks: challenge goals, element trickle.
+  // 3. Unlock/progress checks: challenge goals, element trickle, achievements.
   checkChallengeCompletion(state);
   tickElements(state, simDt);
+  checkAchievements(state);
 
   // 4. Sanitize the hot accumulators every tick so a bad multiplier can never
   //    poison the save (spec §4).

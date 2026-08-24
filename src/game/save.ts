@@ -12,6 +12,7 @@
 import { BAL } from './balance';
 import { clean, decFromString, decToString } from './numbers';
 import { CURRENT_VERSION, defaultState } from './state';
+import { ACHIEVEMENT_IDS } from './systems/achievements';
 import { AUTOMATION_IDS } from './systems/automation';
 import { TIER_COUNT } from './systems/dimensions';
 import { GameOptions, GameState, NotationMode } from './types';
@@ -71,6 +72,7 @@ interface SavedGame {
   singularityEver: string;
   unifies: number;
   metaShop: Record<string, boolean>;
+  achievements: Record<string, boolean>;
   options: GameOptions;
 }
 
@@ -85,6 +87,7 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   2: (old) => old,
   3: (old) => old,
   4: (old) => old,
+  5: (old) => old,
 };
 
 // ---------------------------------------------------------------------------
@@ -146,6 +149,7 @@ const KNOWN_RESEARCH = new Set(BAL.research.map((r) => r.id));
 const KNOWN_MINERS = BAL.miners.map((m) => ({ id: m.id, maxLevel: null as number | null }));
 const KNOWN_MANAGERS = new Set(BAL.managers.defs.map((m) => m.id));
 const KNOWN_META = new Set(BAL.metaShop.map((m) => m.id));
+const KNOWN_ACHIEVEMENTS = new Set(ACHIEVEMENT_IDS);
 
 /** Assigned managers: known ids, de-duplicated, capped at the possible max. */
 function slotsOf(value: unknown): string[] {
@@ -244,6 +248,7 @@ export function serializeState(state: GameState): string {
     singularityEver: decToString(state.singularityEver),
     unifies: state.unifies,
     metaShop: { ...state.metaShop },
+    achievements: { ...state.achievements },
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -357,6 +362,8 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     singularityEver: decFromString(saved.singularityEver ?? '0'),
     unifies: int(saved.unifies, 0, 0),
     metaShop: activeSetOf(saved.metaShop, KNOWN_META),
+    achievements: activeSetOf(saved.achievements, KNOWN_ACHIEVEMENTS),
+    pendingAchievements: [],
 
     options: {
       notation: notationOf(rawOptions.notation),
