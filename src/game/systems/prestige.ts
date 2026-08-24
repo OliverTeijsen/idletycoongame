@@ -23,10 +23,15 @@ export function collapseUnlocked(state: GameState): boolean {
   );
 }
 
-/** Shards granted by collapsing right now: floor((best/coef)^exp). */
+/**
+ * Shards granted by collapsing right now: floor(perDecade · log10(best/coef)).
+ * Logarithmic on purpose — see BAL.collapse.
+ */
 export function collapseGain(state: GameState): Decimal {
   if (state.bestSparkRun.lt(BAL.collapse.unlockSpark)) return ZERO;
-  return clean(state.bestSparkRun.div(BAL.collapse.coef).pow(BAL.collapse.exp).floor());
+  const decades = state.bestSparkRun.div(BAL.collapse.coef).log10();
+  if (!Number.isFinite(decades) || decades <= 0) return ZERO;
+  return clean(D(Math.floor(decades * BAL.collapse.perDecade)));
 }
 
 export function canCollapse(state: GameState): boolean {
@@ -76,19 +81,32 @@ export function doCollapse(state: GameState): boolean {
 // P2 — Ascend (spec §7)
 // ---------------------------------------------------------------------------
 
+/**
+ * Every prestige gate reads the cycle's LIFETIME counter (`shardsEver`,
+ * `prismEver`, `aeonEver`), never the spendable balance.
+ *
+ * Reading the balance would mean that buying a Star Chart node or an Aeon
+ * node pushed the next layer further away — the game punishing you for
+ * playing it. It is also how Unify became unreachable in testing: the Aeon
+ * tree costs 14 Aeon in total, so a player who bought it could never hold the
+ * 10 the gate demanded. The multipliers already read *Ever for the same
+ * reason; the gates now match. Each of these counters still resets with its
+ * own layer, so they measure the current cycle, not all of history.
+ */
+
 /** The Ascend card reveals once the player has ever qualified or ascended. */
 export function ascendUnlocked(state: GameState): boolean {
-  return state.ascends > 0 || state.bestShards.gte(BAL.ascend.unlockShards);
+  return state.ascends > 0 || state.shardsEver.gte(BAL.ascend.unlockShards);
 }
 
 /**
- * Prism granted by ascending now: floor((bestShards/coef)^exp), plus one
+ * Prism granted by ascending now: floor((shardsEver/coef)^exp), plus one
  * free Prism per completed Dim challenge tier (read straight from state to
  * keep prestige ← challenges import one-way).
  */
 export function ascendGain(state: GameState): Decimal {
-  if (state.bestShards.lt(BAL.ascend.unlockShards)) return ZERO;
-  const base = state.bestShards.div(BAL.ascend.coef).pow(BAL.ascend.exp).floor();
+  if (state.shardsEver.lt(BAL.ascend.unlockShards)) return ZERO;
+  const base = state.shardsEver.div(BAL.ascend.coef).pow(BAL.ascend.exp).floor();
   return clean(base.add(state.challenges['dim'] ?? 0));
 }
 
@@ -141,13 +159,13 @@ export function doAscend(state: GameState): boolean {
 
 /** The Converge card reveals once the player has ever qualified or converged. */
 export function convergeUnlocked(state: GameState): boolean {
-  return state.converges > 0 || state.bestPrism.gte(BAL.converge.unlockPrism);
+  return state.converges > 0 || state.prismEver.gte(BAL.converge.unlockPrism);
 }
 
-/** Aeon granted by converging now: floor(log2(bestPrism + 1)) — slow on purpose. */
+/** Aeon granted by converging now: floor(log2(prismEver + 1)) — slow on purpose. */
 export function convergeGain(state: GameState): Decimal {
-  if (state.bestPrism.lt(BAL.converge.unlockPrism)) return ZERO;
-  const log2 = state.bestPrism.add(1).log2();
+  if (state.prismEver.lt(BAL.converge.unlockPrism)) return ZERO;
+  const log2 = state.prismEver.add(1).log2();
   return clean(D(Math.floor(log2)));
 }
 
@@ -202,13 +220,13 @@ export function doConverge(state: GameState): boolean {
 
 /** The Unify card reveals once qualified (Aeon side) or after the first Unify. */
 export function unifyUnlocked(state: GameState): boolean {
-  return state.unifies > 0 || state.bestAeon.gte(BAL.unify.unlockAeon);
+  return state.unifies > 0 || state.aeonEver.gte(BAL.unify.unlockAeon);
 }
 
-/** Singularity granted by unifying now: floor((bestAeon/coef)^exp). */
+/** Singularity granted by unifying now: floor((aeonEver/coef)^exp). */
 export function unifyGain(state: GameState): Decimal {
-  if (state.bestAeon.lt(BAL.unify.unlockAeon)) return ZERO;
-  return clean(state.bestAeon.div(BAL.unify.coef).pow(BAL.unify.exp).floor());
+  if (state.aeonEver.lt(BAL.unify.unlockAeon)) return ZERO;
+  return clean(state.aeonEver.div(BAL.unify.coef).pow(BAL.unify.exp).floor());
 }
 
 /** Unify needs the Aeon threshold AND the Singularity Seed research (§7 gate). */

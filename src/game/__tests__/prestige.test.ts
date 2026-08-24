@@ -22,14 +22,18 @@ describe('collapse gain & gating', () => {
     expect(doCollapse(s)).toBe(false);
   });
 
-  it('gain follows floor(sqrt(best/coef))', () => {
+  it('gain is logarithmic: a fixed number of Spark decades per Shard', () => {
     const s = defaultState(0);
-    s.bestSparkRun = D(1e6);
-    expect(collapseGain(s).toNumber()).toBe(10); // sqrt(100)
-    s.bestSparkRun = D(2.5e7);
-    expect(collapseGain(s).toNumber()).toBe(50);
-    s.bestSparkRun = D('1e12');
-    expect(collapseGain(s).toNumber()).toBe(1e4);
+    // floor(perDecade · log10(best / 1e4)); perDecade = 0.7
+    s.bestSparkRun = D(1e6); // 2 decades → 1
+    expect(collapseGain(s).toNumber()).toBe(1);
+    s.bestSparkRun = D('1e14'); // 10 decades → 7
+    expect(collapseGain(s).toNumber()).toBe(7);
+    s.bestSparkRun = D('1e104'); // 100 decades → 70
+    expect(collapseGain(s).toNumber()).toBe(70);
+    // Explosive Spark must NOT mean explosive Shards — that is the whole point.
+    s.bestSparkRun = D('1e1004');
+    expect(collapseGain(s).toNumber()).toBe(700);
   });
 
   it('stays unlocked forever after the first collapse', () => {

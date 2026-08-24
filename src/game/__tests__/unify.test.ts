@@ -14,9 +14,9 @@ import {
 
 function readyState() {
   const s = defaultState(0);
-  s.aeon = D(12);
-  s.bestAeon = D(12);
-  s.aeonEver = D(20);
+  s.aeon = D(45);
+  s.bestAeon = D(45);
+  s.aeonEver = D(45);
   s.converges = 4;
   s.aeonTree = { dimPower: true };
   s.research = { singularitySeed: true, oreSluice: true, slotA: true };
@@ -42,22 +42,30 @@ function readyState() {
 describe('unify gating & gain', () => {
   it('needs the aeon threshold AND the singularity seed', () => {
     const s = defaultState(0);
-    s.bestAeon = D(12);
+    s.aeonEver = BAL.unify.unlockAeon.add(2);
     expect(unifyUnlocked(s)).toBe(true); // card shows
     expect(canUnify(s)).toBe(false); // but the seed gates the button
     s.research = { singularitySeed: true };
     expect(canUnify(s)).toBe(true);
   });
 
-  it('gain follows floor(sqrt(bestAeon/5)) above the unlock threshold', () => {
+  it('reads lifetime Aeon, so buying the Aeon tree cannot lock Unify away', () => {
     const s = defaultState(0);
-    s.bestAeon = BAL.unify.unlockAeon; // 10 → sqrt(2) → 1: the cheap first one
+    s.aeonEver = BAL.unify.unlockAeon;
+    s.aeon = ZERO; // the whole tree has been bought
+    s.research = { singularitySeed: true };
+    expect(canUnify(s)).toBe(true);
+  });
+
+  it('gain follows floor(sqrt(aeonEver/coef)) above the unlock threshold', () => {
+    const s = defaultState(0);
+    s.aeonEver = BAL.unify.unlockAeon; // 30 → sqrt(2) → 1: the cheap first one
     expect(unifyGain(s).toNumber()).toBe(1);
-    s.bestAeon = D(20);
+    s.aeonEver = D(60);
     expect(unifyGain(s).toNumber()).toBe(2);
-    s.bestAeon = D(500);
+    s.aeonEver = D(1500);
     expect(unifyGain(s).toNumber()).toBe(10); // long tail
-    s.bestAeon = BAL.unify.unlockAeon.sub(1);
+    s.aeonEver = BAL.unify.unlockAeon.sub(1);
     expect(unifyGain(s).eq(ZERO)).toBe(true); // below unlock
   });
 });
@@ -158,8 +166,8 @@ describe('auto-prestige', () => {
     const s = defaultState(0);
     s.collapses = 1;
     s.metaShop = { autoAscend: true };
-    s.bestShards = D(100);
-    s.shards = D(100);
+    s.shardsEver = BAL.ascend.unlockShards.mul(2);
+    s.shards = s.shardsEver;
     tickAutomation(s, 1);
     expect(s.ascends).toBe(1);
     expect(s.prism.gte(1)).toBe(true);
@@ -169,9 +177,8 @@ describe('auto-prestige', () => {
     const s = defaultState(0);
     s.collapses = 1;
     s.metaShop = { autoAscend: true, autoConverge: true };
-    s.bestPrism = D(100);
-    s.prism = D(100);
-    s.prismEver = D(100);
+    s.prismEver = BAL.converge.unlockPrism.mul(2);
+    s.prism = s.prismEver;
     tickAutomation(s, 1);
     expect(s.converges).toBe(1);
     expect(s.aeon.gte(1)).toBe(true);
@@ -185,7 +192,7 @@ describe('auto-prestige', () => {
     s.ascends = 1;
     s.metaShop = { autoAscend: true };
     s.activeChallenge = 'famine';
-    s.bestShards = D(1e4);
+    s.shardsEver = D(1e4);
     tickAutomation(s, 1);
     expect(s.ascends).toBe(1); // unchanged
   });

@@ -12,9 +12,9 @@ import {
 
 function readyState() {
   const s = defaultState(0);
-  s.shards = D(72);
-  s.bestShards = D(72);
-  s.shardsEver = D(120);
+  s.shards = D(180);
+  s.bestShards = D(180);
+  s.shardsEver = D(180);
   s.collapses = 5;
   s.shardUpgrades = { swiftServos: 2 };
   s.starChart = { ignite: true };
@@ -29,17 +29,24 @@ function readyState() {
 describe('ascend gating & gain', () => {
   it('locked below the shard threshold', () => {
     const s = defaultState(0);
-    s.bestShards = BAL.ascend.unlockShards.sub(1);
+    s.shardsEver = BAL.ascend.unlockShards.sub(1);
     expect(ascendUnlocked(s)).toBe(false);
     expect(ascendGain(s).eq(ZERO)).toBe(true);
     expect(doAscend(s)).toBe(false);
   });
 
-  it('gain follows floor(sqrt(bestShards/8)) + dim bonus', () => {
+  it('gain follows floor(sqrt(shardsEver/coef)) + dim bonus', () => {
     const s = readyState();
-    expect(ascendGain(s).toNumber()).toBe(3); // sqrt(72/8) = 3
+    expect(ascendGain(s).toNumber()).toBe(3); // sqrt(180/20) = 3
     s.challenges = { dim: 2 };
     expect(ascendGain(s).toNumber()).toBe(5);
+  });
+
+  it('spending Shards on the Star Chart never delays Ascend', () => {
+    const s = readyState();
+    s.shards = ZERO; // all invested in nodes
+    expect(ascendUnlocked(s)).toBe(true);
+    expect(canAscend(s)).toBe(true);
   });
 });
 
@@ -73,6 +80,7 @@ describe('ascend reset semantics', () => {
   it('ascending abandons an active challenge without completing it', () => {
     const s = readyState();
     s.ascends = 1; // challenges are unlocked
+    s.shardsEver = D(180); // readyState values survive the reset above
     s.activeChallenge = 'famine';
     doAscend(s);
     expect(s.activeChallenge).toBeNull();

@@ -15,9 +15,9 @@ import {
 
 function readyState() {
   const s = defaultState(0);
-  s.prism = D(35);
-  s.bestPrism = D(35);
-  s.prismEver = D(60);
+  s.prism = D(200);
+  s.bestPrism = D(200);
+  s.prismEver = D(255);
   s.ascends = 3;
   s.prismGrid = { amplify: 2 };
   s.elements = { points: 1, alloc: { ignis: 4, lux: 2 }, progress: 100 };
@@ -36,20 +36,28 @@ function readyState() {
 }
 
 describe('converge gating & gain', () => {
-  it('locked below 30 prism', () => {
+  it('locked below the prism threshold', () => {
     const s = defaultState(0);
-    s.bestPrism = BAL.converge.unlockPrism.sub(1);
+    s.prismEver = BAL.converge.unlockPrism.sub(1);
     expect(convergeUnlocked(s)).toBe(false);
     expect(convergeGain(s).eq(ZERO)).toBe(true);
     expect(doConverge(s)).toBe(false);
   });
 
-  it('gain is floor(log2(bestPrism + 1)) — slow on purpose', () => {
+  it('gain is floor(log2(prismEver + 1)) — slow on purpose', () => {
     const s = defaultState(0);
-    s.bestPrism = D(31); // log2(32) = 5
-    expect(convergeGain(s).toNumber()).toBe(5);
-    s.bestPrism = D(1023);
+    s.prismEver = D(255); // log2(256) = 8
+    expect(convergeGain(s).toNumber()).toBe(8);
+    s.prismEver = D(1023);
     expect(convergeGain(s).toNumber()).toBe(10);
+  });
+
+  it('spending Prism on the grid never delays Converge', () => {
+    const s = defaultState(0);
+    s.prismEver = BAL.converge.unlockPrism;
+    s.prism = ZERO; // everything already spent
+    expect(convergeUnlocked(s)).toBe(true);
+    expect(canConverge(s)).toBe(true);
   });
 });
 
@@ -59,9 +67,9 @@ describe('converge reset semantics', () => {
     expect(canConverge(s)).toBe(true);
     expect(doConverge(s)).toBe(true);
 
-    // gained: log2(36) = 5
-    expect(s.aeon.toNumber()).toBe(5);
-    expect(s.aeonEver.toNumber()).toBe(5);
+    // gained: floor(log2(255 + 1)) = 8
+    expect(s.aeon.toNumber()).toBe(8);
+    expect(s.aeonEver.toNumber()).toBe(8);
     expect(s.converges).toBe(1);
 
     // P2 layer gone
@@ -121,8 +129,8 @@ describe('aeon effects', () => {
   it('mote memory and fixed stars survive an Ascend', () => {
     const s = defaultState(0);
     s.ascends = 0;
-    s.bestShards = D(100);
-    s.shards = D(100);
+    s.shardsEver = BAL.ascend.unlockShards.mul(2);
+    s.shards = s.shardsEver;
     s.motes = D(1000);
     s.starChart = { ignite: true, kindling: true };
     s.aeonTree = { keepMotes: true, keepChart: true };

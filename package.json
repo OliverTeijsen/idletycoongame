@@ -13,8 +13,8 @@
     "eas": "npx --yes eas-cli@21.8.0",
     "build:apk": "npx --yes eas-cli@21.8.0 build --profile preview --platform android",
     "build:dev": "npx --yes eas-cli@21.8.0 build --profile development --platform android",
-    "test": "jest",
-    "test:core": "jest --selectProjects core",
+    "test": "node --max-old-space-size=4096 node_modules/jest/bin/jest.js",
+    "test:core": "node --max-old-space-size=4096 node_modules/jest/bin/jest.js --selectProjects core",
     "test:app": "jest --selectProjects app",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"

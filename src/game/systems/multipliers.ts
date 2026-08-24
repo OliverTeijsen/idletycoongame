@@ -163,10 +163,20 @@ export function sparkMult(state: GameState): Decimal {
   return cleanMul(m);
 }
 
+/**
+ * Dimension Boost multiplier: mult^softcap(boosts). The EXPONENT is capped
+ * (see BAL.softcap.dimBoostExp) so the boost feedback loop cannot run away.
+ */
+export function dimBoostMult(state: GameState): Decimal {
+  const n = Math.max(0, state.dimBoosts);
+  const { t, p } = BAL.softcap.dimBoostExp;
+  const capped = n <= t ? n : t * Math.pow(n / t, p);
+  return cleanMul(BAL.dimBoost.mult.pow(capped));
+}
+
 /** Per-tier multiplier (1-indexed). Boosts, Ignition, Cascade, stars, Solitary, Aeon. */
 export function tierMult(state: GameState, tier: number): Decimal {
-  let m = BAL.dimBoost.mult
-    .pow(state.dimBoosts)
+  let m = dimBoostMult(state)
     .mul(starTierMult(state, tier))
     .mul(challengeTierMult(state))
     .mul(aeonMult(state));
@@ -191,7 +201,7 @@ export interface MultBreakdownEntry {
 export function multBreakdown(state: GameState): MultBreakdownEntry[] {
   return [
     { label: 'Achievements', value: achievementMult(state) },
-    { label: 'Dimension Boosts', value: BAL.dimBoost.mult.pow(state.dimBoosts) },
+    { label: 'Dimension Boosts', value: dimBoostMult(state) },
     { label: 'Spark upgrades', value: sparkMult(state) },
     { label: 'Orbit speed', value: speedMult(state) },
     { label: 'Star Chart', value: starGlobalMult(state) },

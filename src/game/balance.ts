@@ -270,10 +270,20 @@ export const BAL = {
   },
 
   /**
-   * P1 — Collapse (spec §7). Gain: shards = floor((bestSparkRun/coef)^exp).
+   * P1 — Collapse (spec §7).
+   *
+   * Gain is LOGARITHMIC in Spark: shards = floor(perDecade · log10(best/coef)).
+   * The spec offers "sublinear (sqrt/log)" and the sqrt draft does not survive
+   * contact with the dimension chain: Spark's exponent grows roughly linearly
+   * with time, so sqrt gains grow *exponentially* with time and one deep run
+   * clears every threshold above it at once. Measured with sqrt, Ascend opened
+   * at 12 minutes and Converge at 16 against §10 targets of 40–150 minutes and
+   * 2–10 hours. Log gain makes a Shard cost a fixed number of Spark decades,
+   * which is what turns the ladder back into a ladder.
+   *
    * Effect: global ×(1 + multPerShard·shards), softcapped (softcap.shard).
    */
-  collapse: { unlockSpark: D(1e6), coef: D(1e4), exp: 0.5, multPerShard: D(0.25) },
+  collapse: { unlockSpark: D(1e6), coef: D(1e4), perDecade: 0.7, multPerShard: D(0.25) },
 
   /** Shard upgrade tree (P1's own tree). Effects are implemented in prestige.ts/shardperks.ts. */
   shardUpgrades: [
@@ -344,7 +354,11 @@ export const BAL = {
    * one free Prism per completed Dim challenge tier. Effect: everything
    * ×2^softcap(prismEver) — exponent capped via softcap.prismExp.
    */
-  ascend: { unlockShards: D(50), coef: D(8), exp: 0.5 },
+  /**
+   * P2 — Ascend. `unlockShards` is the bar for EACH cycle (Ascend resets
+   * bestShards), so it is the main lever on how long an Ascend cycle runs.
+   */
+  ascend: { unlockShards: D(140), coef: D(20), exp: 0.5 },
 
   /** Prism grid (P2's own tree). Repeatable, rising Prism cost. */
   prismGrid: [
@@ -462,7 +476,7 @@ export const BAL = {
    * on purpose. Effect: all tier multipliers ×tierMultPer per lifetime Aeon,
    * offline cap +offlineCapHPer hours per lifetime Aeon.
    */
-  converge: { unlockPrism: D(30), tierMultPer: D(1.5), offlineCapHPer: 1 },
+  converge: { unlockPrism: D(90), tierMultPer: D(1.5), offlineCapHPer: 1 },
 
   /** Aeon tree (P3's own tree): permanent structural nodes. */
   aeonTree: [
@@ -529,7 +543,7 @@ export const BAL = {
    * Effect: ×multPer global per lifetime Singularity, persisting across
    * every reset, plus the Meta Shop.
    */
-  unify: { unlockAeon: D(10), coef: D(5), exp: 0.5, multPer: D(10) },
+  unify: { unlockAeon: D(30), coef: D(15), exp: 0.5, multPer: D(10) },
 
   /**
    * Achievements (spec §8.5): a small, always-relevant global boost that
@@ -555,6 +569,19 @@ export const BAL = {
    * lategame polynomially.
    */
   softcap: {
+    /**
+     * Applied to the EXPONENT of the Dimension Boost multiplier (2^boosts).
+     *
+     * This is the one the prototype died without. Boosts feed themselves:
+     * more boosts → more production → more purchases → more boosts, each
+     * worth a flat ×2. Measured uncapped, a bot reached 2,259 boosts and a
+     * Spark exponent of 1e26562 inside two hours — the exact
+     * "super-exponential runaway" §7 warns about, and it flattened the whole
+     * prestige ladder because every threshold above it fell at once.
+     * Capping the exponent makes boosts grow the multiplier polynomially
+     * instead of exponentially, while still always being worth taking.
+     */
+    dimBoostExp: { t: 50, p: 0.62 },
     /** Applied to the Shard multiplier (1 + 0.25·shards). */
     shard: { t: D(1e3), p: 0.5 },
     /** Applied to the EXPONENT of the Prism multiplier (2^prism). */

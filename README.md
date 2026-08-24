@@ -1,29 +1,27 @@
 # GYRE
 
 A pixel-art idle/incremental about a mote of light that becomes a self-sustaining
-cosmic engine. Nested prestige layers, interlocking upgrade sources, numbers that
-never break.
+cosmic engine. Four nested prestige layers, a dozen interlocking upgrade sources,
+numbers that never break.
 
-Built per the GYRE design spec: all economy tunables live in
-`src/game/balance.ts`, every game quantity is a `Decimal` (break_infinity.js),
-and the pure core (`src/game/`) has zero React imports so it runs under plain
-Node for tests and the balancing harness.
+Built to the GYRE design spec: all economy tunables live in `src/game/balance.ts`,
+every game quantity is a `Decimal` (break_infinity.js), and the pure core
+(`src/game/`, `src/render/particles.ts`, `src/render/scene.ts`) has zero React
+imports so it runs under plain Node for tests and the balancing harness.
 
-## Status
+## Status — all 10 phases complete
 
-**Phases 0–2 complete:**
+| Layer | Currency | Unlocks |
+|---|---|---|
+| Layer 0 | Spark ✦ / Motes ◦ | 8-tier orbiter chain, Dimension Boosts |
+| P1 Collapse | Shards ◆ | Star Chart, autobuyers |
+| P2 Ascend | Prism ▲ | Elements, Challenges, full automation |
+| P3 Converge | Aeon ✧ | Minerals & Research, Boost Managers, Time Flux |
+| P4 Unify | Singularity ⦿ | Meta Shop, auto-prestige |
 
-- Tap the Core for Spark; buy Tier-1 Orbiters to automate.
-- 8-tier dimension chain (tier k produces tier k−1), Buy 1/10/MAX.
-- Spark upgrades (Charge Coil, Flux Lattice, Ignition, Cascade).
-- Motes trickle + Resonance branch (Focus, Density, Resonance), softcapped.
-- Dimension Boost soft reset: ×2 all tiers, unlocks the next tier, escalating
-  requirement.
-- Versioned, migratable, corruption-proof saves with a backup slot; offline
-  progress with a 4h cap; export/import.
-- Options: notation modes, reduced motion, confirm-on-reset, hard reset.
-
-Next: Phase 3 — Collapse (P1), Shards, automation v1, Star Chart.
+Plus 55 achievements, a Stats screen showing the whole multiplier stack, a
+Canvas 2D stage with pooled particles, Web Audio cues, and rewarded-ad hooks
+(off by default — see below).
 
 ## Commands
 
@@ -31,21 +29,56 @@ Next: Phase 3 — Collapse (P1), Shards, automation v1, Star Chart.
 |---|---|
 | `npm run web` | Dev server in the browser (the dev loop on this machine) |
 | `npm test` | Full suite (pure core under ts-jest + app under jest-expo) |
-| `npm run test:core` | Fast pure-core tests incl. the pacing harness |
+| `npm run test:core` | Fast pure-core tests, incl. the pacing + ladder harnesses |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build:apk` | EAS cloud build, Android APK (commit first — EAS archives the committed tree) |
+
+Note that `npm test` runs Jest with an enlarged heap: the balance harnesses are
+real simulations and the default heap is not sized for them.
+
+## Balancing
+
+`src/game/__tests__/ladder.test.ts` walks one save from a fresh start up the
+whole prestige ladder and prints a balance report, asserting the spec's §10
+pacing windows. Retune `balance.ts` against those numbers, never by feel. Run
+a shorter walk while iterating:
+
+```
+LADDER_HOURS=3 npm run test:core -- ladder
+```
+
+Times are *bot-seconds*: the harness buys optimally every second from minute
+one, so pre-automation numbers run roughly 2× ahead of a real first session.
+After P1 the autobuyers do the same thing, so later numbers are honest.
 
 ## Architecture
 
 ```
 src/
   game/      pure TS core: numbers, balance, types, loop, offline, save, systems/
-  services/  storage adapter (MMKV native / localStorage web)
+  render/    particles.ts + scene.ts are PURE and tested; StageCanvas.web.tsx
+             paints them on Canvas 2D, StageCanvas.tsx is the native fallback
+  audio/     throttle.ts is pure; audio.web.ts synthesises cues via Web Audio
+  services/  storage (MMKV/localStorage), ads (native/web split), monetization
   state/     zustand store wrapping GameState + actions
-  render/    Stage (placeholder until the Phase 8 art pass)
   ui/        App, screens, components, theme
 ```
 
-The pacing harness (`src/game/__tests__/pacing.test.ts`) simulates a greedy
-player at full tick resolution and logs time-to-milestone — retune
-`balance.ts` against those numbers, not by feel.
+Platform-split files (`*.web.tsx` / `*.tsx`) are the Renderer seam from spec §3:
+Metro picks the web file on web and the bare one elsewhere. Swapping in Skia or
+a real native audio backend means replacing exactly one file each.
+
+## Turning ads on
+
+Ads ship **off** (`MONETIZATION_ENABLED = false` in `src/services/monetization.ts`)
+and the game is fully playable without them. To enable:
+
+1. AdMob console → your GYRE app → create **two Rewarded ad units**.
+2. Paste their ids into `ADMOB.rewardedProductionBoost` / `rewardedDoubleOffline`.
+3. Flip `MONETIZATION_ENABLED` to `true`.
+4. `npm run build:apk` — ads need a native build; they cannot work on web or in Expo Go.
+
+The Android App ID is already wired into `app.json`'s config plugin. Google's
+always-fill test id is in `ADMOB_TEST_IDS` for verifying the flow on a device
+before your real units are approved — never ship it, and never click your own
+live ads.
