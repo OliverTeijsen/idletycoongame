@@ -67,10 +67,18 @@ function secondsUntil(s: GameState, done: (s: GameState) => boolean, maxSeconds:
  * A timeout here does not fail cleanly: Jest cannot interrupt a synchronous
  * loop, so it tears the environment down while the simulation is still
  * running and the next global lookup explodes as "Cannot read properties of
- * undefined (reading 'isFinite')". If you ever see that, it is a timeout —
- * not a corrupted Decimal — so raise the budget.
+ * undefined (reading 'isFinite')" or "... (reading 'isSafeInteger')". If you
+ * ever see that, it is a timeout — not a corrupted Decimal — so raise the
+ * budget.
+ *
+ * Measured, this suite runs in ~16s on its own. The budget is forty times
+ * that because `npm test` runs the core and app projects concurrently and
+ * every worker is fighting for the same cores; at 300s it failed roughly one
+ * run in three on a normal laptop, and a suite that fails one run in three is
+ * a suite people learn to ignore. Nothing here is fast enough for a tight
+ * budget to catch a real hang sooner than a person would.
  */
-const PACING_TIMEOUT_MS = 300_000;
+const PACING_TIMEOUT_MS = 600_000;
 
 describe('pacing', () => {
   it('first orbiter is reachable inside a minute of tapping', () => {
@@ -92,7 +100,7 @@ describe('pacing', () => {
     const toCollapseUnlock = afterBoost < 0 ? -1 : toFirstBoost + afterBoost;
     // eslint-disable-next-line no-console
     console.log(
-      `[pacing] first DimBoost: ${toFirstBoost}s · Collapse unlock (1e6 spark): ${
+      `[pacing] first DimBoost: ${toFirstBoost}s · Collapse unlock (${BAL.collapse.unlockSpark.toString()} spark): ${
         toCollapseUnlock < 0 ? 'NOT REACHED' : `${toCollapseUnlock}s from start`
       } · boosts=${s.dimBoosts} · highest tier=${highestUnlockedTier(s)}`,
     );

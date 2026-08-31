@@ -6,13 +6,14 @@ import { BAL } from '../../game/balance';
 import { formatTime } from '../../game/numbers';
 import { elementAlloc, elementAllocatable } from '../../game/systems/elements';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { mono, palette, radius, spacing, type } from '../theme';
 
 const ELEMENT_COLORS: Record<string, string> = {
   ignis: palette.core,
   aqua: palette.orbiterCyan,
-  terra: '#a3e635',
-  aer: palette.ink,
+  terra: palette.ore,
+  aer: palette.orbiter,
   lux: palette.singularity,
 };
 
@@ -27,21 +28,24 @@ export function ElementsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
-        <Text style={styles.pool}>
-          {game.elements.points} <Text style={styles.poolLabel}>points</Text>
-        </Text>
+        <View>
+          <Text style={styles.poolLabel}>Unspent points</Text>
+          <Text style={styles.pool}>{game.elements.points}</Text>
+        </View>
         {spent > 0 && (
           <Pressable style={styles.respec} onPress={respec}>
-            <Text style={styles.respecText}>respec all ({spent})</Text>
+            <Text style={styles.respecText}>Take back all {spent}</Text>
           </Pressable>
         )}
       </View>
       <Text style={styles.blurb}>
-        Points come from Ascends (+{BAL.elements.pointsPerAscend}), challenge completions (+
-        {BAL.elements.pointsPerChallenge}) and time (next in {formatTime(toNext)}). Tap an
-        element to invest. {BAL.elements.capstoneAt}+ points in one element adds a ×
-        {BAL.elements.capstoneMult.toString()} global capstone.
+        Points come from Ascends (+{BAL.elements.pointsPerAscend}), completed trials (+
+        {BAL.elements.pointsPerChallenge}) and time — the next one lands in{' '}
+        {formatTime(toNext)}. Tap an element to invest. Reach {BAL.elements.capstoneAt} points in
+        one element for a ×{BAL.elements.capstoneMult.toString()} capstone on everything.
       </Text>
+
+      <SectionHeader label="Affinities" accent={palette.prism} />
 
       {BAL.elements.defs.map((def) => {
         const alloc = elementAlloc(game, def.id);
@@ -58,9 +62,12 @@ export function ElementsScreen() {
             <View style={styles.body}>
               <Text style={styles.name}>
                 {def.name}
-                {capstone ? '  ✧ capstone' : ''}
+                {capstone ? '  · capstone active' : ''}
               </Text>
-              <Text style={styles.desc}>{def.locked ? `🔒 ${def.desc}` : def.desc}</Text>
+              <Text style={styles.desc}>
+                {def.desc}
+                {def.locked ? ' · opens with Minerals' : ''}
+              </Text>
             </View>
             <Text style={[styles.alloc, alloc > 0 && { color: ELEMENT_COLORS[def.id] }]}>
               {alloc}
@@ -73,35 +80,36 @@ export function ElementsScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pool: { color: palette.ink, fontSize: 20, fontWeight: '800', ...mono },
-  poolLabel: { color: palette.dim, fontSize: 12, fontWeight: '600' },
+  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xl * 2 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  pool: { ...type.display, color: palette.ink },
+  poolLabel: { ...type.label, color: palette.faint },
   respec: {
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.md,
   },
-  respecText: { color: palette.dim, fontSize: 11 },
-  blurb: { color: palette.dim, fontSize: 11, lineHeight: 17, marginVertical: spacing.md },
+  respecText: { ...type.micro, color: palette.dim },
+  blurb: { ...type.body, color: palette.dim, marginTop: spacing.md },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     padding: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: 6,
     gap: spacing.md,
   },
   rowLocked: { opacity: 0.45 },
-  rowCapstone: { borderColor: palette.singularity },
+  /** A capstone is the only thing on this screen worth a lit border. */
+  rowCapstone: { borderColor: palette.singularity, backgroundColor: palette.panel },
   symbol: { fontSize: 20, width: 26, textAlign: 'center' },
   body: { flex: 1 },
-  name: { color: palette.ink, fontSize: 14, fontWeight: '700' },
-  desc: { color: palette.dim, fontSize: 11, marginTop: 2 },
-  alloc: { color: palette.dim, fontSize: 16, fontWeight: '800', minWidth: 28, textAlign: 'right', ...mono },
+  name: { ...type.title, color: palette.ink },
+  desc: { ...type.micro, color: palette.dim, marginTop: 3 },
+  alloc: { ...type.figure, color: palette.faint, minWidth: 28, textAlign: 'right' },
 });

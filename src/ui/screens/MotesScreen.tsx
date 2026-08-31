@@ -8,7 +8,8 @@ import { moteRate } from '../../game/systems/motes';
 import { upgradeCost, upgradeMaxed } from '../../game/systems/upgrades';
 import { useGameStore } from '../../state/store';
 import { Row } from '../components/Row';
-import { palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { LAYERS, palette, spacing, type } from '../theme';
 
 export function MotesScreen() {
   const game = useGameStore((s) => s.game);
@@ -18,9 +19,11 @@ export function MotesScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.blurb}>
-        Motes ◦ drift off your Tier-1 orbiters ({format(moteRate(game), { notation, small: true })}
-        /s). Spend them on resonance — permanent through Dimension Boosts.
+        Motes drift off your Tier-1 orbiters at{' '}
+        {format(moteRate(game), { notation, small: true })} per second. Spend them on resonance;
+        it survives every Dimension Boost.
       </Text>
+      <SectionHeader label="Resonance" accent={palette.mote} />
       {BAL.motes.upgrades.map((u) => {
         const level = game.moteUpgrades[u.id] ?? 0;
         const maxed = upgradeMaxed(u, level);
@@ -30,8 +33,8 @@ export function MotesScreen() {
             key={u.id}
             color={palette.mote}
             title={u.name}
-            subtext={`${u.desc} · lvl ${level}`}
-            costText={`◦ ${format(cost, { notation })}`}
+            subtext={`${u.desc} · level ${level}`}
+            costText={`${LAYERS.mote.glyph} ${format(cost, { notation })}`}
             affordable={game.motes.gte(cost)}
             maxed={maxed}
             onBuy={() => buyMoteUpgrade(u.id)}
@@ -43,6 +46,6 @@ export function MotesScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  blurb: { color: palette.dim, fontSize: 12, lineHeight: 18, marginBottom: spacing.md },
+  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xl * 2 },
+  blurb: { ...type.body, color: palette.dim },
 });

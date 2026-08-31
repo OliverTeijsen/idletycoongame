@@ -251,10 +251,12 @@ export function defaultSceneConfig(size: number): SceneConfig {
   return {
     width: size,
     height: size,
+    // Colours mirror ui/theme (see the note in particles.ts for why they are
+    // copied): orbiter, orbiterCyan, then faint for the slowest outer band.
     bands: [
-      { radius: size * 0.27, speedScale: 1, color: '#5eead4' },
-      { radius: size * 0.37, speedScale: 1.7, color: '#67e8f9' },
-      { radius: size * 0.46, speedScale: 2.6, color: '#7fa89e' },
+      { radius: size * 0.27, speedScale: 1, color: '#4fe3c1' },
+      { radius: size * 0.37, speedScale: 1.7, color: '#49c8ef' },
+      { radius: size * 0.46, speedScale: 2.6, color: '#6f7f9c' },
     ],
     maxDrawn: 48,
     particleCapacity: 160,

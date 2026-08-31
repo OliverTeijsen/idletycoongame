@@ -51,6 +51,24 @@ Times are *bot-seconds*: the harness buys optimally every second from minute
 one, so pre-automation numbers run roughly 2× ahead of a real first session.
 After P1 the autobuyers do the same thing, so later numbers are honest.
 
+The bot's "is this reset worth taking?" rule is not the harness's own — it is
+`worth{Collapsing,Ascending,Converging}` from `systems/prestige.ts`, the same
+rule the auto-prestige toggles use. The bot in the report and the autobuyers a
+player leaves running must not be playing different games; when that rule was
+wrong, the report showed a ladder that opened on schedule and then seized.
+
+First-reach times alone cannot see a stalled ladder, so the report also lists
+every Converge in the walk and asserts the gaps between them.
+
+The second report, `the trials` in `trials.test.ts`, walks to the first Ascend
+and times tier 1 of each challenge - that is where the `BAL.challenges` goals
+come from, and the only place their thousand-fold spread makes sense. It gets
+its own file, and the player model both reports drive sits beside them in
+`harness.ts` (deliberately not a test file, so jest does not pick it up):
+each report is a multi-hour simulation, and with the two of them sharing one
+jest worker the worker ran out of heap - which surfaces as `Test suite failed
+to run`, not as anything resembling a balance failure.
+
 ## Architecture
 
 ```

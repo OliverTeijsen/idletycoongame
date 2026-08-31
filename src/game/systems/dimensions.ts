@@ -134,13 +134,13 @@ export function highestUnlockedTier(state: GameState): number {
 }
 
 /**
- * Purchases of the highest unlocked tier needed for the next boost. Flat
- * while boosts still unlock new tiers; afterwards it escalates so ×2-per-boost
- * cannot run away against a fixed price.
+ * Purchases of the highest unlocked tier needed for the next boost. Escalates
+ * from the very first boost, so ×2-per-boost can never run away against a
+ * fixed price — and so the opening boosts, the only ones a player buys by
+ * hand, actually cost something.
  */
 export function dimBoostRequirement(state: GameState): number {
-  const boostsPastUnlocks = Math.max(0, state.dimBoosts - (TIER_COUNT - BAL.startingTiers));
-  return BAL.dimBoost.requirement + BAL.dimBoost.requirementGrowth * boostsPastUnlocks;
+  return BAL.dimBoost.requirement + BAL.dimBoost.requirementGrowth * Math.max(0, state.dimBoosts);
 }
 
 export function canDimBoost(state: GameState): boolean {

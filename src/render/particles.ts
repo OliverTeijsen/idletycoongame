@@ -39,11 +39,21 @@ export interface SpawnOpts {
   text?: string;
 }
 
+/**
+ * Stage colours, duplicated from ui/theme on purpose.
+ *
+ * This module is PURE (spec §3/§12) — importing the theme would pull in
+ * react-native's Platform and cost this file its Node-only tests. So the
+ * values are copied, and copies drift: these were still the pre-instrument
+ * teal palette after the ground moved to blue-black, which left the outer
+ * orbit band a muddy sage green against it. If you retune ui/theme's orbiter,
+ * mote or faint hues, retune these to match.
+ */
 const DEFAULTS: Record<ParticleKind, { life: number; size: number; color: string }> = {
-  pulse: { life: 0.9, size: 6, color: '#5eead4' },
-  spark: { life: 0.6, size: 2.5, color: '#ffe6a8' },
-  mote: { life: 1.4, size: 3, color: '#ff8a7a' },
-  value: { life: 0.85, size: 13, color: '#ffe6a8' },
+  pulse: { life: 0.9, size: 6, color: '#4fe3c1' }, // palette.orbiter
+  spark: { life: 0.6, size: 2.5, color: '#ffe6a8' }, // palette.coreHighlight
+  mote: { life: 1.4, size: 3, color: '#ff7a6b' }, // palette.mote
+  value: { life: 0.85, size: 13, color: '#ffe6a8' }, // palette.coreHighlight
 };
 
 export class ParticlePool {

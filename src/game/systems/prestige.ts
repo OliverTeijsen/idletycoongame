@@ -162,11 +162,15 @@ export function convergeUnlocked(state: GameState): boolean {
   return state.converges > 0 || state.prismEver.gte(BAL.converge.unlockPrism);
 }
 
-/** Aeon granted by converging now: floor(log2(prismEver + 1)) — slow on purpose. */
+/**
+ * Aeon granted by converging now: floor((prismEver/coef)^exp).
+ *
+ * Sublinear, but a POWER law rather than the log2 it started as — see
+ * BAL.converge for why the log made the fifth Converge unreachable.
+ */
 export function convergeGain(state: GameState): Decimal {
   if (state.prismEver.lt(BAL.converge.unlockPrism)) return ZERO;
-  const log2 = state.prismEver.add(1).log2();
-  return clean(D(Math.floor(log2)));
+  return clean(state.prismEver.div(BAL.converge.coef).pow(BAL.converge.exp).floor());
 }
 
 export function canConverge(state: GameState): boolean {
@@ -294,6 +298,39 @@ export function doUnify(state: GameState): boolean {
   state.boostSlots = state.boostSlots.slice(0, slots);
 
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// "Worth taking?" — the shared sensible-player rule
+// ---------------------------------------------------------------------------
+
+/**
+ * Should a sensible player take this reset right now?
+ *
+ * One definition, used by both the auto-prestige toggles (systems/automation)
+ * and the balance harnesses, so the bot in the ladder report is playing the
+ * same game the autobuyers play. The per-layer thresholds and the reasoning
+ * behind them live in BAL.prestigeStep.
+ *
+ * Each rule reads the LIFETIME counter, matching the multipliers: spending
+ * Shards or Aeon must never make the next reset look less attractive.
+ */
+export function worthCollapsing(state: GameState): boolean {
+  if (!canCollapse(state)) return false;
+  if (state.collapses === 0) return true;
+  return collapseGain(state).gte(state.shardsEver.mul(BAL.prestigeStep.collapse));
+}
+
+export function worthAscending(state: GameState): boolean {
+  if (!canAscend(state)) return false;
+  if (state.ascends === 0) return true;
+  return ascendGain(state).gte(state.prismEver.mul(BAL.prestigeStep.ascend));
+}
+
+export function worthConverging(state: GameState): boolean {
+  if (!canConverge(state)) return false;
+  if (state.converges === 0) return true;
+  return convergeGain(state).gte(state.aeonEver.mul(BAL.prestigeStep.converge));
 }
 
 // ---------------------------------------------------------------------------

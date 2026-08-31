@@ -15,8 +15,9 @@ import {
 import { upgradeCost, upgradeMaxed } from '../../game/systems/upgrades';
 import { Stage } from '../../render/Stage';
 import { useGameStore } from '../../state/store';
+import { Card, Meter, SectionHeader } from '../components/Panel';
 import { Row } from '../components/Row';
-import { mono, palette, spacing } from '../theme';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 import { BuyAmount } from '../../game/types';
 
 const AMOUNTS: BuyAmount[] = [1, 10, 'MAX'];
@@ -32,28 +33,33 @@ export function CoreScreen() {
 
   const boostReq = dimBoostRequirementText(game);
   const boostReady = canDimBoost(game);
+  const boughtOfTop = game.dims[boostReq.tier - 1].bought;
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Stage />
 
-      <View style={styles.toggleRow}>
-        {AMOUNTS.map((a) => (
-          <Pressable
-            key={String(a)}
-            onPress={() => setBuyAmount(a)}
-            style={[styles.toggle, buyAmount === a && styles.toggleActive]}
-          >
-            <Text style={[styles.toggleText, buyAmount === a && styles.toggleTextActive]}>
-              {a === 'MAX' ? 'MAX' : `×${a}`}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
       <RewardedBoostCard />
 
-      <Text style={styles.section}>ORBITERS</Text>
+      <SectionHeader
+        label="Orbiters"
+        accent={palette.orbiter}
+        trailing={
+          <View style={styles.toggleRow}>
+            {AMOUNTS.map((a) => (
+              <Pressable
+                key={String(a)}
+                onPress={() => setBuyAmount(a)}
+                style={[styles.toggle, buyAmount === a && styles.toggleActive]}
+              >
+                <Text style={[styles.toggleText, buyAmount === a && styles.toggleTextActive]}>
+                  {a === 'MAX' ? 'Max' : `×${a}`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        }
+      />
       {game.dims.map((d, i) => {
         if (!d.unlocked) return null;
         const tier = i + 1;
@@ -67,30 +73,52 @@ export function CoreScreen() {
             title={`Tier ${tier} Orbiter`}
             subtext={
               tier === 1
-                ? `makes Spark · owned ${formatWhole(d.amount, notation)} (${d.bought} bought)`
-                : `makes Tier ${tier - 1} · owned ${formatWhole(d.amount, notation)} (${d.bought} bought)`
+                ? `Makes Spark · ${formatWhole(d.amount, notation)} spinning, ${d.bought} bought`
+                : `Makes Tier ${tier - 1} · ${formatWhole(d.amount, notation)} spinning, ${d.bought} bought`
             }
-            costText={`✦ ${format(cost, { notation })}${buyAmount === 'MAX' && n > 0 ? ` ×${n}` : ''}`}
+            costText={`${LAYERS.spark.glyph} ${format(cost, { notation })}${
+              buyAmount === 'MAX' && n > 0 ? ` ×${n}` : ''
+            }`}
             affordable={affordable}
             onBuy={() => buyDimension(tier)}
           />
         );
       })}
 
-      <Pressable
-        onPress={dimBoost}
-        disabled={!boostReady}
-        style={[styles.boost, !boostReady && styles.boostLocked]}
-      >
-        <Text style={styles.boostTitle}>DIMENSION BOOST · ×2 all tiers</Text>
-        <Text style={styles.boostSub}>
-          {boostReady
-            ? 'resets Spark & orbiters — permanent ×2 and a new tier'
-            : `needs ${boostReq.need} Tier-${boostReq.tier} purchases (${game.dims[boostReq.tier - 1].bought}/${boostReq.need})`}
-        </Text>
+      {/*
+        The boost is a requirement you work toward, so it is drawn as a meter
+        rather than a sentence: "9 of 16" reads at a glance, and the bar makes
+        the last few purchases feel like the last few.
+      */}
+      <Pressable onPress={dimBoost} disabled={!boostReady}>
+        {({ pressed }) => (
+          <Card accent={palette.orbiterCyan} active={boostReady} muted={!boostReady}>
+            <View style={styles.boostHead}>
+              <Text style={[styles.boostTitle, !boostReady && { color: palette.dim }]}>
+                Dimension boost
+              </Text>
+              <Text style={[styles.boostGain, pressed && boostReady && { opacity: 0.6 }]}>
+                ×2 all tiers
+              </Text>
+            </View>
+            <Text style={styles.boostSub}>
+              {boostReady
+                ? 'Resets Spark and orbiters. Keeps the ×2, and opens the next tier.'
+                : `Buy ${boostReq.need - boughtOfTop} more Tier-${boostReq.tier} orbiters.`}
+            </Text>
+            <Meter
+              value={boughtOfTop}
+              max={boostReq.need}
+              color={boostReady ? palette.orbiterCyan : palette.lineHi}
+            />
+            <Text style={styles.boostCount}>
+              {boughtOfTop} / {boostReq.need} Tier-{boostReq.tier}
+            </Text>
+          </Card>
+        )}
       </Pressable>
 
-      <Text style={styles.section}>SPARK UPGRADES</Text>
+      <SectionHeader label="Spark upgrades" accent={palette.core} />
       {BAL.sparkUpgrades.map((u) => {
         const level = game.sparkUpgrades[u.id] ?? 0;
         const maxed = upgradeMaxed(u, level);
@@ -100,8 +128,10 @@ export function CoreScreen() {
             key={u.id}
             color={palette.core}
             title={u.name}
-            subtext={`${u.desc} · lvl ${level}${u.maxLevel !== null ? `/${u.maxLevel}` : ''}`}
-            costText={`✦ ${format(cost, { notation })}`}
+            subtext={`${u.desc} · level ${level}${
+              u.maxLevel !== null ? ` of ${u.maxLevel}` : ''
+            }`}
+            costText={`${LAYERS.spark.glyph} ${format(cost, { notation })}`}
             affordable={game.spark.gte(cost)}
             maxed={maxed}
             onBuy={() => buySparkUpgrade(u.id)}
@@ -126,9 +156,9 @@ function RewardedBoostCard() {
   const offered = adService.isAvailable('production');
   if (!active && !offered) return null;
 
+  const mult = BAL.rewards.production.mult.toString();
   return (
     <Pressable
-      style={[styles.reward, active && styles.rewardActive]}
       disabled={busy || active}
       onPress={async () => {
         setBusy(true);
@@ -136,64 +166,52 @@ function RewardedBoostCard() {
         setBusy(false);
       }}
     >
-      <Text style={styles.rewardTitle}>
-        {active
-          ? `×${BAL.rewards.production.mult.toString()} PRODUCTION · ${formatTime(remaining)} left`
-          : `▶  Watch an ad for ×${BAL.rewards.production.mult.toString()} production`}
-      </Text>
-      {!active && (
-        <Text style={styles.rewardSub}>
-          {busy ? 'loading…' : `lasts ${formatTime(BAL.rewards.production.seconds)}`}
-        </Text>
-      )}
+      <Card accent={active ? palette.core : palette.orbiter} active>
+        <View style={styles.rewardRow}>
+          <View style={styles.rewardBody}>
+            <Text style={styles.rewardTitle}>
+              {active ? `Production ×${mult} is running` : `Watch an ad for ×${mult} production`}
+            </Text>
+            <Text style={styles.rewardSub}>
+              {active
+                ? `${formatTime(remaining)} left`
+                : busy
+                  ? 'Loading…'
+                  : `Lasts ${formatTime(BAL.rewards.production.seconds)}`}
+            </Text>
+          </View>
+          {!active && !busy && <Text style={styles.rewardCue}>▶</Text>}
+        </View>
+      </Card>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  reward: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.orbiter,
-    backgroundColor: '#0c2226',
-    padding: spacing.md,
-    marginTop: spacing.md,
-    alignItems: 'center',
-  },
-  rewardActive: { borderColor: palette.core, backgroundColor: '#241a0d' },
-  rewardTitle: { color: palette.ink, fontSize: 13, fontWeight: '800' },
-  rewardSub: { color: palette.dim, fontSize: 11, marginTop: 2 },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  toggleRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
+
+  rewardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  rewardBody: { flex: 1 },
+  rewardTitle: { ...type.title, color: palette.ink },
+  rewardSub: { ...type.micro, color: palette.dim, marginTop: 3 },
+  rewardCue: { color: palette.orbiter, fontSize: 16 },
+
+  /** Sits inside the Orbiters section rule — it only governs orbiter buys. */
+  toggleRow: { flexDirection: 'row', gap: spacing.xs },
   toggle: {
-    paddingVertical: 6,
-    paddingHorizontal: spacing.lg,
-    borderRadius: 6,
+    paddingVertical: 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: palette.line,
-    backgroundColor: palette.panel,
   },
-  toggleActive: { borderColor: palette.core, backgroundColor: '#241a0d' },
-  toggleText: { color: palette.dim, fontSize: 12, fontWeight: '700', ...mono },
+  toggleActive: { borderColor: palette.core, backgroundColor: palette.panelWarm },
+  toggleText: { ...type.label, fontSize: 10, letterSpacing: 0.8, color: palette.faint },
   toggleTextActive: { color: palette.core },
-  boost: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.orbiterCyan,
-    backgroundColor: '#0c2226',
-    padding: spacing.md,
-    marginTop: spacing.sm,
-    alignItems: 'center',
-  },
-  boostLocked: { opacity: 0.5, borderColor: palette.line },
-  boostTitle: { color: palette.orbiterCyan, fontSize: 13, fontWeight: '800' },
-  boostSub: { color: palette.dim, fontSize: 11, marginTop: 2, textAlign: 'center' },
+
+  boostHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  boostTitle: { ...type.title, color: palette.orbiterCyan },
+  boostGain: { ...type.figure, fontSize: 15, color: palette.orbiterCyan },
+  boostSub: { ...type.micro, color: palette.dim, marginTop: 3 },
+  boostCount: { ...type.micro, ...mono, color: palette.faint, marginTop: 5 },
 });

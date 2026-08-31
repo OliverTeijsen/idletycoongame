@@ -24,21 +24,21 @@ describe('collapse gain & gating', () => {
 
   it('gain is logarithmic: a fixed number of Spark decades per Shard', () => {
     const s = defaultState(0);
-    // floor(perDecade · log10(best / 1e4)); perDecade = 0.7
-    s.bestSparkRun = D(1e6); // 2 decades → 1
+    // floor(perDecade · log10(best / 1e5)); perDecade = 0.7
+    s.bestSparkRun = D(1e7); // 2 decades → 1
     expect(collapseGain(s).toNumber()).toBe(1);
-    s.bestSparkRun = D('1e14'); // 10 decades → 7
+    s.bestSparkRun = D('1e15'); // 10 decades → 7
     expect(collapseGain(s).toNumber()).toBe(7);
-    s.bestSparkRun = D('1e104'); // 100 decades → 70
+    s.bestSparkRun = D('1e105'); // 100 decades → 70
     expect(collapseGain(s).toNumber()).toBe(70);
     // Explosive Spark must NOT mean explosive Shards — that is the whole point.
-    s.bestSparkRun = D('1e1004');
+    s.bestSparkRun = D('1e1005');
     expect(collapseGain(s).toNumber()).toBe(700);
   });
 
   it('stays unlocked forever after the first collapse', () => {
     const s = defaultState(0);
-    s.bestSparkRun = D(1e6);
+    s.bestSparkRun = D(1e7);
     doCollapse(s);
     expect(s.bestSparkRun.lt(BAL.collapse.unlockSpark)).toBe(true);
     expect(collapseUnlocked(s)).toBe(true);
@@ -48,9 +48,9 @@ describe('collapse gain & gating', () => {
 describe('collapse reset semantics (spec §19: exactly the specified fields)', () => {
   function playedState() {
     const s = defaultState(0);
-    s.spark = D(5e6);
-    s.bestSparkRun = D(5e6);
-    s.totalSpark = D(9e6);
+    s.spark = D(5e7);
+    s.bestSparkRun = D(5e7);
+    s.totalSpark = D(9e7);
     s.dims[0] = { bought: 30, amount: D(1000), unlocked: true };
     s.sparkUpgrades = { fluxLattice: 5 };
     s.dimBoosts = 2;
@@ -79,7 +79,7 @@ describe('collapse reset semantics (spec §19: exactly the specified fields)', (
 
     // kept
     expect(s.shards.toNumber()).toBeGreaterThan(0);
-    expect(s.totalSpark.eq(D(9e6))).toBe(true);
+    expect(s.totalSpark.eq(D(9e7))).toBe(true);
     expect(s.motesEver.eq(D(200))).toBe(true);
     expect(s.starChart.ignite).toBe(true);
     expect(s.automation.dim1).toBe(false);

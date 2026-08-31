@@ -6,6 +6,7 @@ import {
   buyDim,
   canDimBoost,
   dimCost,
+  dimBoostRequirement,
   dimCostFor,
   dimMaxAffordable,
   doDimBoost,
@@ -171,7 +172,7 @@ describe('dimension boost', () => {
     const s = defaultState(0);
     for (let i = 0; i < 20; i++) {
       const highest = highestUnlockedTier(s);
-      s.dims[highest - 1].bought = BAL.dimBoost.requirement;
+      s.dims[highest - 1].bought = dimBoostRequirement(s);
       doDimBoost(s);
     }
     expect(highestUnlockedTier(s)).toBe(TIER_COUNT);

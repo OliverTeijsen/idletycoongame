@@ -40,36 +40,105 @@ export function drawOrbitPaths(ctx: CanvasRenderingContext2D, scene: Scene, p: P
   ctx.restore();
 }
 
-/** A pixel diamond-star: four points, drawn as a rotated square + cross. */
+/** `#rrggbb` -> `rgba(...)`. The palette is hex; light needs alpha. */
+function tint(hex: string, a: number): string {
+  if (hex.length !== 7 || hex[0] !== '#') return hex;
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/**
+ * Four tapered blades from the centre, at `rotation`.
+ *
+ * This is what makes a bright point read as a STAR rather than as a dot: a
+ * blade is widest where the light is and vanishes at the tip, so it describes
+ * light bleeding along an axis. A bar of constant width — which is what the
+ * old highlight cross was — describes a plank.
+ */
+function drawSpikes(
+  ctx: CanvasRenderingContext2D,
+  len: number,
+  halfWidth: number,
+  color: string,
+  alpha: number,
+  rotation: number,
+): void {
+  ctx.save();
+  ctx.rotate(rotation);
+  const g = ctx.createLinearGradient(0, 0, len, 0);
+  g.addColorStop(0, tint(color, alpha));
+  g.addColorStop(1, tint(color, 0));
+  ctx.fillStyle = g;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, -halfWidth);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, halfWidth);
+    ctx.closePath();
+    ctx.fill();
+    ctx.rotate(Math.PI / 2);
+  }
+  ctx.restore();
+}
+
+/**
+ * The core: the one warm light source in the app (§12, and the direction note
+ * in theme.ts).
+ *
+ * Drawn as LIGHT, not as a sprite. It was a flat rotated square with a
+ * full-width highlight cross laid over it, which read as a crosshair on a
+ * placeholder tile — the cross arms reached past the diamond's own points
+ * (1.05r against 0.88r) and so ended in blunt square stubs poking out at the
+ * compass points, and a single flat fill can never look like it is emitting.
+ *
+ * Now: a bloom, four diffraction blades, and a body that runs white-hot at
+ * the centre out through the amber to nothing. The bloom and blades composite
+ * with 'lighter' so overlapping light accumulates the way light does; the
+ * body is painted normally so the core keeps a definite, readable form
+ * instead of blowing out into a blob.
+ *
+ * It is also smaller. The old body spanned 94px of a 264px stage and crowded
+ * the innermost orbit at r=0.27 — the instrument's graticule has to stay
+ * legible around the light. The body now sits at 0.115 and only the blades
+ * cross the first ring, which is exactly what a bright star does on a plate.
+ */
 export function drawCore(ctx: CanvasRenderingContext2D, scene: Scene, p: Palette): void {
-  const base = Math.min(scene.cfg.width, scene.cfg.height) * 0.17;
+  const base = Math.min(scene.cfg.width, scene.cfg.height) * 0.115;
   const r = base * scene.coreScale;
 
   ctx.save();
   ctx.translate(scene.cx, scene.cy);
+  ctx.globalCompositeOperation = 'lighter';
 
-  // Soft glow behind.
-  const glow = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2.6);
-  glow.addColorStop(0, p.coreGlow);
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
+  // Bloom. Four stops rather than two: a straight ramp to transparent lands
+  // as a visible disc edge, and the whole point of the well is light with no
+  // edge to it.
+  const bloom = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 3.6);
+  bloom.addColorStop(0, tint(p.coreEdge, 0.3));
+  bloom.addColorStop(0.25, tint(p.core, 0.15));
+  bloom.addColorStop(0.6, tint(p.core, 0.05));
+  bloom.addColorStop(1, tint(p.core, 0));
+  ctx.fillStyle = bloom;
   ctx.beginPath();
-  ctx.arc(0, 0, r * 2.6, 0, TAU);
+  ctx.arc(0, 0, r * 3.6, 0, TAU);
   ctx.fill();
 
-  // Diamond body.
-  ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = p.core;
-  ctx.fillRect(-r * 0.62, -r * 0.62, r * 1.24, r * 1.24);
-  ctx.strokeStyle = p.coreEdge;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(-r * 0.62, -r * 0.62, r * 1.24, r * 1.24);
+  // Long blades on the axes, short ones on the diagonals — the asymmetry is
+  // what keeps it from reading as an eight-pointed snowflake.
+  drawSpikes(ctx, r * 2.8, r * 0.15, p.coreEdge, 0.5, 0);
+  drawSpikes(ctx, r * 1.45, r * 0.1, p.core, 0.35, Math.PI / 4);
 
-  // Highlight cross.
-  ctx.rotate(-Math.PI / 4);
-  ctx.fillStyle = p.coreEdge;
-  ctx.fillRect(-r * 0.09, -r * 1.05, r * 0.18, r * 2.1);
-  ctx.fillRect(-r * 1.05, -r * 0.09, r * 2.1, r * 0.18);
+  // Body.
+  ctx.globalCompositeOperation = 'source-over';
+  const body = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  body.addColorStop(0, '#fffdf4');
+  body.addColorStop(0.3, tint(p.coreEdge, 1));
+  body.addColorStop(0.72, tint(p.core, 0.95));
+  body.addColorStop(1, tint(p.core, 0));
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, TAU);
+  ctx.fill();
 
   ctx.restore();
 }

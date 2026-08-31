@@ -57,14 +57,14 @@ describe('unify gating & gain', () => {
     expect(canUnify(s)).toBe(true);
   });
 
-  it('gain follows floor(sqrt(aeonEver/coef)) above the unlock threshold', () => {
+  it('gain follows floor((aeonEver/coef)^exp) above the unlock threshold', () => {
     const s = defaultState(0);
-    s.aeonEver = BAL.unify.unlockAeon; // 30 → sqrt(2) → 1: the cheap first one
+    s.aeonEver = BAL.unify.unlockAeon; // 30 → (2.5)^0.55 → 1: the cheap first one
     expect(unifyGain(s).toNumber()).toBe(1);
     s.aeonEver = D(60);
     expect(unifyGain(s).toNumber()).toBe(2);
     s.aeonEver = D(1500);
-    expect(unifyGain(s).toNumber()).toBe(10); // long tail
+    expect(unifyGain(s).toNumber()).toBe(14); // long tail, but a walkable one
     s.aeonEver = BAL.unify.unlockAeon.sub(1);
     expect(unifyGain(s).eq(ZERO)).toBe(true); // below unlock
   });
@@ -75,8 +75,8 @@ describe('unify reset semantics', () => {
     const s = readyState();
     expect(doUnify(s)).toBe(true);
 
-    expect(s.singularity.toNumber()).toBe(1);
-    expect(s.singularityEver.toNumber()).toBe(1);
+    expect(s.singularity.toNumber()).toBe(2); // (45/12)^0.55
+    expect(s.singularityEver.toNumber()).toBe(2);
     expect(s.unifies).toBe(1);
 
     // P3 layer + minerals + research + flux gone

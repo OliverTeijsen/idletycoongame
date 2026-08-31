@@ -1,4 +1,4 @@
-/** Challenges tab (spec §8.4): restriction runs with permanent rewards. */
+/** Trials tab (spec §8.4): restriction runs with permanent rewards. */
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -10,49 +10,91 @@ import {
   challengeTiers,
 } from '../../game/systems/challenges';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { Card, Meter } from '../components/Panel';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 
 export function ChallengesScreen() {
   const game = useGameStore((s) => s.game);
   const enter = useGameStore((s) => s.enterChallenge);
   const exit = useGameStore((s) => s.exitChallenge);
   const notation = game.options.notation;
+  const busyElsewhere = game.activeChallenge !== null;
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.blurb}>
-        A challenge restarts the run under a restriction. Reach the Spark goal to complete the
-        tier — the reward is permanent. Entering or leaving resets the run (your Shards, Prism
-        and trees are safe).
+        A trial restarts the run under a restriction. Reach the Spark goal to complete the tier —
+        the reward is permanent. Entering or leaving resets the run; your Shards, Prism and trees
+        are safe.
       </Text>
+
       {BAL.challenges.defs.map((def) => {
         const tiers = challengeTiers(game, def.id);
         const active = game.activeChallenge === def.id;
         const done = tiers >= def.maxTier;
         const goal = challengeGoal(game, def.id);
+
         return (
-          <View key={def.id} style={[styles.card, active && styles.cardActive, done && styles.cardDone]}>
-            <View style={styles.cardHeader}>
+          <Card
+            key={def.id}
+            accent={done ? palette.orbiter : palette.prism}
+            active={active}
+            muted={busyElsewhere && !active}
+          >
+            <View style={styles.head}>
               <Text style={styles.name}>{def.name}</Text>
-              <Text style={styles.tiers}>
-                {'●'.repeat(tiers)}
-                {'○'.repeat(Math.max(0, def.maxTier - tiers))}
+              <Text style={styles.pips}>
+                <Text style={{ color: palette.prism }}>{'●'.repeat(tiers)}</Text>
+                <Text style={{ color: palette.line }}>
+                  {'○'.repeat(Math.max(0, def.maxTier - tiers))}
+                </Text>
               </Text>
             </View>
-            <Text style={styles.restriction}>{def.restriction}</Text>
-            <Text style={styles.reward}>Reward: {def.rewardDesc}</Text>
+
+            <View style={styles.def}>
+              <Text style={styles.defLabel}>Rule</Text>
+              <Text style={[styles.defValue, { color: palette.mote }]}>{def.restriction}</Text>
+            </View>
+            <View style={styles.def}>
+              <Text style={styles.defLabel}>Reward</Text>
+              <Text style={[styles.defValue, { color: palette.orbiter }]}>{def.rewardDesc}</Text>
+            </View>
+
             {!done && (
-              <Text style={styles.goal}>
-                Goal: ✦ {format(goal, { notation })}
-                {active ? ` · best ✦ ${format(game.bestSparkRun, { notation })}` : ''}
-              </Text>
+              <>
+                <View style={styles.goalRow}>
+                  <Text style={styles.defLabel}>Goal</Text>
+                  <Text style={styles.goalValue}>
+                    {LAYERS.spark.glyph} {format(goal, { notation })}
+                  </Text>
+                </View>
+                {/*
+                  The meter is LOGARITHMIC, because the goal is. A trial goal
+                  is 1e400 and a run passes 1e200 in half the time it needs —
+                  on a linear bar every trial would sit pinned at zero until
+                  it finished, which tells the player nothing.
+                */}
+                {active && (
+                  <Meter
+                    value={Math.max(0, game.bestSparkRun.log10())}
+                    max={Math.max(1, goal.log10())}
+                    color={palette.prism}
+                  />
+                )}
+              </>
             )}
+
             {active ? (
-              <Pressable style={[styles.button, styles.buttonExit]} onPress={exit}>
-                <Text style={styles.buttonExitText}>ABANDON RUN</Text>
-              </Pressable>
+              <>
+                <Text style={styles.best}>
+                  Best this run: {LAYERS.spark.glyph} {format(game.bestSparkRun, { notation })}
+                </Text>
+                <Pressable style={[styles.button, styles.buttonExit]} onPress={exit}>
+                  <Text style={styles.buttonExitText}>Abandon run</Text>
+                </Pressable>
+              </>
             ) : done ? (
-              <Text style={styles.doneText}>COMPLETE</Text>
+              <Text style={styles.doneText}>All {def.maxTier} tiers complete</Text>
             ) : (
               <Pressable
                 style={[styles.button, !canEnterChallenge(game, def.id) && styles.buttonLocked]}
@@ -60,11 +102,11 @@ export function ChallengesScreen() {
                 onPress={() => enter(def.id)}
               >
                 <Text style={styles.buttonText}>
-                  {game.activeChallenge !== null ? 'another run is active' : `ENTER TIER ${tiers + 1}`}
+                  {busyElsewhere ? 'Another trial is running' : `Enter tier ${tiers + 1}`}
                 </Text>
               </Pressable>
             )}
-          </View>
+          </Card>
         );
       })}
     </ScrollView>
@@ -72,36 +114,39 @@ export function ChallengesScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  blurb: { color: palette.dim, fontSize: 11, lineHeight: 17, marginBottom: spacing.md },
-  card: {
-    backgroundColor: palette.panel,
-    borderColor: palette.line,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  cardActive: { borderColor: palette.core },
-  cardDone: { borderColor: palette.orbiter, opacity: 0.75 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { color: palette.ink, fontSize: 14, fontWeight: '800' },
-  tiers: { color: palette.core, fontSize: 12, letterSpacing: 2, ...mono },
-  restriction: { color: palette.mote, fontSize: 11, marginTop: 4 },
-  reward: { color: palette.orbiter, fontSize: 11, marginTop: 2 },
-  goal: { color: palette.dim, fontSize: 11, marginTop: 2, ...mono },
-  button: {
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2, paddingTop: spacing.sm },
+  blurb: { ...type.body, color: palette.dim, marginBottom: spacing.sm },
+
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  name: { ...type.label, fontSize: 13, letterSpacing: 2, color: palette.ink },
+  pips: { fontSize: 11, letterSpacing: 3 },
+
+  def: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  defLabel: { ...type.label, color: palette.faint, width: 52, paddingTop: 2 },
+  defValue: { ...type.micro, flex: 1 },
+
+  goalRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'center',
     marginTop: spacing.sm,
-    backgroundColor: '#241a0d',
-    borderColor: palette.core,
-    borderWidth: 1,
-    borderRadius: 6,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+    paddingTop: spacing.sm,
+  },
+  goalValue: { ...mono, color: palette.core, fontSize: 12, fontWeight: '700', flex: 1 },
+  best: { ...type.micro, ...mono, color: palette.dim, marginTop: spacing.sm },
+
+  button: {
+    marginTop: spacing.md,
+    backgroundColor: palette.prism,
+    borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  buttonLocked: { opacity: 0.4 },
-  buttonText: { color: palette.core, fontSize: 12, fontWeight: '800' },
-  buttonExit: { backgroundColor: '#2a1212', borderColor: palette.danger },
-  buttonExitText: { color: palette.danger, fontSize: 12, fontWeight: '800' },
-  doneText: { color: palette.orbiter, fontSize: 12, fontWeight: '800', marginTop: spacing.sm },
+  buttonLocked: { backgroundColor: palette.panelHi },
+  buttonText: { ...type.label, fontSize: 11, color: palette.bgDeep },
+  buttonExit: { backgroundColor: 'transparent', borderWidth: 1, borderColor: palette.danger },
+  buttonExitText: { ...type.label, fontSize: 11, color: palette.danger },
+  doneText: { ...type.label, fontSize: 11, color: palette.orbiter, marginTop: spacing.md },
 });

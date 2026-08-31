@@ -14,19 +14,21 @@ import { globalMult, speedMult } from '../game/systems/multipliers';
 import { motesUnlocked } from '../game/systems/motes';
 import { tapPower } from '../game/systems/upgrades';
 import { useGameStore } from '../state/store';
-import { mono, palette, spacing } from '../ui/theme';
+import { LAYERS, mono, palette, radius, spacing, type } from '../ui/theme';
 import { Scene, SceneInput, defaultSceneConfig, drawnPerBand } from './scene';
 import { StageCanvas } from './StageCanvas';
 import { Palette } from './sprites';
 
-const STAGE_SIZE = 240;
+const STAGE_SIZE = 264;
 
 const CANVAS_PALETTE: Palette = {
-  bg: palette.bg,
-  path: palette.line,
+  bg: palette.bgDeep,
+  // Orbit paths sit one step brighter than a normal hairline: they are the
+  // instrument's graticule, and they have to read against the core's glow.
+  path: palette.lineHi,
   core: palette.coreDeep,
   coreEdge: palette.coreHighlight,
-  coreGlow: 'rgba(255, 191, 92, 0.18)',
+  coreGlow: 'rgba(255, 182, 72, 0.22)',
 };
 
 /** Which layer's colour a prestige flash uses (deepest wins). */
@@ -114,13 +116,21 @@ export function Stage() {
 
   return (
     <View style={styles.wrap}>
-      <StageCanvas
-        scene={scene}
-        inputRef={inputRef}
-        size={STAGE_SIZE}
-        palette={CANVAS_PALETTE}
-        onTap={onTap}
-      />
+      {/*
+        The well. The canvas is recessed into the darkest ground in the app
+        and lit from inside, so the core reads as the one light source the
+        whole palette is built around — that bleed is the point of the
+        instrument-plate direction, not an effect on top of it.
+      */}
+      <View style={styles.well}>
+        <StageCanvas
+          scene={scene}
+          inputRef={inputRef}
+          size={STAGE_SIZE}
+          palette={CANVAS_PALETTE}
+          onTap={onTap}
+        />
+      </View>
       <StageReadout />
       <TierCounters />
     </View>
@@ -128,8 +138,10 @@ export function Stage() {
 }
 
 /**
- * Tap value + the global-multiplier readout (spec §11). Text only, so it
- * re-renders on store changes without ever touching the canvas.
+ * The instrument readout beneath the well (spec §11): what a tap is worth on
+ * the left, what the whole multiplier stack is worth on the right, split by a
+ * hairline. Text only, so it re-renders on store changes without ever
+ * touching the canvas.
  */
 function StageReadout() {
   const tapText = useGameStore((s) =>
@@ -140,21 +152,36 @@ function StageReadout() {
   );
   return (
     <View style={styles.readout}>
-      <Text style={styles.tapHint}>tap +{tapText} ✦</Text>
-      <Text style={styles.multReadout}>×{multText} global</Text>
+      <View style={styles.readoutCell}>
+        <Text style={styles.readoutLabel}>Per tap</Text>
+        <Text style={[styles.readoutValue, { color: palette.core }]}>
+          +{tapText} {LAYERS.spark.glyph}
+        </Text>
+      </View>
+      <View style={styles.readoutDivider} />
+      <View style={[styles.readoutCell, styles.readoutRight]}>
+        <Text style={styles.readoutLabel}>All production</Text>
+        <Text style={[styles.readoutValue, { color: palette.orbiter }]}>×{multText}</Text>
+      </View>
     </View>
   );
 }
 
+/**
+ * The tier strip: one continuous plate divided by hairlines rather than eight
+ * separate pills. Orbiters are one chain, so they are drawn as one object.
+ */
 function TierCounters() {
   const game = useGameStore((s) => s.game);
   const highest = highestUnlockedTier(game);
   return (
-    <View style={styles.rings}>
+    <View style={styles.strip}>
       {game.dims.slice(0, highest).map((d, i) => (
-        <View key={i} style={styles.ring}>
-          <Text style={[styles.ringLabel, i === 0 && { color: palette.orbiter }]}>T{i + 1}</Text>
-          <Text style={styles.ringValue}>{formatWhole(d.amount, game.options.notation)}</Text>
+        <View key={i} style={[styles.cell, i > 0 && styles.cellDivided]}>
+          <Text style={[styles.cellLabel, i === 0 && { color: palette.orbiter }]}>T{i + 1}</Text>
+          <Text style={styles.cellValue} numberOfLines={1}>
+            {formatWhole(d.amount, game.options.notation)}
+          </Text>
         </View>
       ))}
     </View>
@@ -162,27 +189,43 @@ function TierCounters() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', paddingVertical: spacing.md },
-  readout: { alignItems: 'center', marginTop: 2, gap: 1 },
-  tapHint: { color: palette.dim, fontSize: 11, ...mono },
-  multReadout: { color: palette.orbiter, fontSize: 12, fontWeight: '700', ...mono },
-  rings: {
+  wrap: { alignItems: 'center', paddingTop: spacing.md },
+  well: {
+    borderRadius: STAGE_SIZE,
+    backgroundColor: palette.bgDeep,
+    borderWidth: 1,
+    borderColor: palette.line,
+    overflow: 'hidden',
+    // The bleed. Maps to box-shadow on web and elevation-free glow on iOS;
+    // Android simply drops it, which costs nothing the layout depends on.
+    shadowColor: palette.core,
+    shadowOpacity: 0.22,
+    shadowRadius: 34,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  readout: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.sm,
+    alignItems: 'center',
+    alignSelf: 'stretch',
     marginTop: spacing.md,
   },
-  ring: {
-    alignItems: 'center',
+  readoutCell: { flex: 1, gap: 2 },
+  readoutRight: { alignItems: 'flex-end' },
+  readoutDivider: { width: 1, height: 26, backgroundColor: palette.line },
+  readoutLabel: { ...type.label, color: palette.faint },
+  readoutValue: { ...type.figure, fontSize: 17 },
+  strip: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
     backgroundColor: palette.panel,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    minWidth: 64,
+    borderRadius: radius.md,
+    overflow: 'hidden',
   },
-  ringLabel: { color: palette.dim, fontSize: 10, fontWeight: '700' },
-  ringValue: { color: palette.ink, fontSize: 12, fontWeight: '700', ...mono },
+  cell: { flex: 1, alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2 },
+  cellDivided: { borderLeftWidth: 1, borderLeftColor: palette.line },
+  cellLabel: { ...type.label, fontSize: 9, color: palette.faint },
+  cellValue: { ...mono, color: palette.ink, fontSize: 12, fontWeight: '700', marginTop: 2 },
 });

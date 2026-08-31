@@ -113,7 +113,8 @@ function Band({
   );
 }
 
-const palettePath = '#1c3634';
+/** Orbit-path hairline for the native backend — ui/theme's lineHi. */
+const palettePath = '#30405c';
 
 export function StageCanvas({ scene, inputRef, size, palette, onTap }: StageCanvasProps) {
   const coreScale = useRef(new Animated.Value(1)).current;

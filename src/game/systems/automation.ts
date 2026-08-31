@@ -12,15 +12,12 @@ import { GameState } from '../types';
 import { buyDim, canDimBoost, doDimBoost } from './dimensions';
 import { buyMoteUpgrade } from './motes';
 import {
-  ascendGain,
-  canAscend,
-  canCollapse,
-  canConverge,
-  collapseGain,
-  convergeGain,
   doAscend,
   doCollapse,
   doConverge,
+  worthAscending,
+  worthCollapsing,
+  worthConverging,
 } from './prestige';
 import { autobuyInterval } from './shardperks';
 import { starAutobuyTier } from './starchart';
@@ -115,35 +112,33 @@ function runAutobuyPass(state: GameState): void {
   }
 
   // Auto-prestige, deepest layer first so a shallow reset never wastes a
-  // deep one queued in the same pass. All share the sensible-player rule:
-  // reset when the gain is a meaningful step up (or the first time). Never
-  // during a challenge run (it would wipe progress toward the goal).
+  // deep one queued in the same pass. All three share the sensible-player
+  // rule from prestige.ts (worth*), which is also what the balance harness
+  // plays. Never during a challenge run — it would wipe progress toward the
+  // goal.
   if (state.activeChallenge === null) {
     if (
       autobuyerAvailable(state, 'autoConverge') &&
       autobuyerEnabled(state, 'autoConverge') &&
-      canConverge(state)
+      worthConverging(state)
     ) {
-      const gain = convergeGain(state);
-      if (state.converges === 0 || gain.gte(state.aeonEver.mul(0.25))) doConverge(state);
+      doConverge(state);
     }
 
     if (
       autobuyerAvailable(state, 'autoAscend') &&
       autobuyerEnabled(state, 'autoAscend') &&
-      canAscend(state)
+      worthAscending(state)
     ) {
-      const gain = ascendGain(state);
-      if (state.ascends === 0 || gain.gte(state.prism.add(1).mul(0.25))) doAscend(state);
+      doAscend(state);
     }
 
     if (
       autobuyerAvailable(state, 'autoCollapse') &&
       autobuyerEnabled(state, 'autoCollapse') &&
-      canCollapse(state)
+      worthCollapsing(state)
     ) {
-      const gain = collapseGain(state);
-      if (state.collapses === 0 || gain.gte(state.shards.add(1).mul(0.25))) doCollapse(state);
+      doCollapse(state);
     }
   }
 

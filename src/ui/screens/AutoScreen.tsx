@@ -12,7 +12,8 @@ import {
 import { managerAssigned, managerSlots, managersUnlocked } from '../../game/systems/managers';
 import { autobuyInterval } from '../../game/systems/shardperks';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { mono, palette, radius, spacing, type } from '../theme';
 
 const LABELS: Record<AutomationId, { title: string; desc: string }> = {
   dim1: { title: 'Auto: Tier 1 Orbiters', desc: 'buys max each pass' },
@@ -40,9 +41,15 @@ export function AutoScreen() {
     <ScrollView contentContainerStyle={styles.scroll}>
       {managersUnlocked(game) && (
         <>
-          <Text style={styles.section}>
-            BOOST MANAGERS · {game.boostSlots.length}/{managerSlots(game)} slots
-          </Text>
+          <SectionHeader
+            label="Boost managers"
+            accent={palette.aeon}
+            trailing={
+              <Text style={styles.slots}>
+                {game.boostSlots.length}/{managerSlots(game)} slots
+              </Text>
+            }
+          />
           <Text style={styles.blurb}>
             Assign managers to your limited slots — Research adds more. Tap to swap.
           </Text>
@@ -60,12 +67,12 @@ export function AutoScreen() {
                   <Text style={styles.desc}>{def.desc}</Text>
                 </View>
                 <Text style={[styles.state, assigned && styles.stateOn]}>
-                  {assigned ? 'ASSIGNED' : slotsFull ? 'FULL' : 'BENCH'}
+                  {assigned ? 'On duty' : slotsFull ? 'No slot' : 'Benched'}
                 </Text>
               </Pressable>
             );
           })}
-          <Text style={styles.section}>AUTOBUYERS</Text>
+          <SectionHeader label="Autobuyers" accent={palette.orbiter} />
         </>
       )}
       <Text style={styles.blurb}>
@@ -83,10 +90,12 @@ export function AutoScreen() {
           >
             <View style={styles.body}>
               <Text style={styles.title}>{LABELS[id].title}</Text>
-              <Text style={styles.desc}>{available ? LABELS[id].desc : `🔒 ${LABELS[id].desc}`}</Text>
+              <Text style={[styles.desc, !available && { color: palette.faint }]}>
+                {LABELS[id].desc}
+              </Text>
             </View>
             <Text style={[styles.state, available && enabled && styles.stateOn]}>
-              {!available ? '—' : enabled ? 'ON' : 'OFF'}
+              {!available ? 'Locked' : enabled ? 'On' : 'Off'}
             </Text>
           </Pressable>
         );
@@ -96,31 +105,25 @@ export function AutoScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  blurb: { color: palette.dim, fontSize: 12, lineHeight: 18, marginBottom: spacing.md },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  rowAssigned: { borderColor: palette.aeon, backgroundColor: '#0d1a24' },
+  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xl * 2 },
+  blurb: { ...type.body, color: palette.dim, marginBottom: spacing.sm },
+  slots: { ...type.micro, ...mono, color: palette.faint },
+  rowAssigned: { borderColor: palette.aeon, backgroundColor: palette.panel },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: 6,
   },
-  rowLocked: { opacity: 0.5 },
+  rowLocked: { opacity: 0.45 },
   body: { flex: 1 },
-  title: { color: palette.ink, fontSize: 13, fontWeight: '700' },
-  desc: { color: palette.dim, fontSize: 11, marginTop: 2 },
-  state: { color: palette.dim, fontSize: 12, fontWeight: '800', ...mono },
+  title: { ...type.title, fontSize: 13, color: palette.ink },
+  desc: { ...type.micro, color: palette.dim, marginTop: 3 },
+  state: { ...type.label, fontSize: 10, color: palette.faint },
   stateOn: { color: palette.orbiter },
 });

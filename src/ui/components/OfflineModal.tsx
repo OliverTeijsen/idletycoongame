@@ -5,7 +5,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { format, formatTime } from '../../game/numbers';
 import { adService } from '../../services/ads';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 
 export function OfflineModal() {
   const summary = useGameStore((s) => s.offlineSummary);
@@ -22,21 +22,21 @@ export function OfflineModal() {
     <Modal transparent animationType="fade" onRequestClose={dismiss}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>WHILE YOU WERE AWAY</Text>
+          <Text style={styles.title}>While you were away</Text>
           <Text style={styles.time}>{formatTime(summary.seconds)}</Text>
           {summary.sparkGained.gt(0) && (
             <Text style={[styles.gain, { color: palette.core }]}>
-              ✦ +{format(summary.sparkGained, { notation })} Spark
+              {LAYERS.spark.glyph} +{format(summary.sparkGained, { notation })} Spark
             </Text>
           )}
           {summary.motesGained.gt(0) && (
             <Text style={[styles.gain, { color: palette.mote }]}>
-              ◦ +{format(summary.motesGained, { notation })} Motes
+              {LAYERS.mote.glyph} +{format(summary.motesGained, { notation })} Motes
             </Text>
           )}
           {summary.oreGained.gt(0) && (
-            <Text style={[styles.gain, { color: '#a3e635' }]}>
-              ⛏ +{format(summary.oreGained, { notation })} Ore
+            <Text style={[styles.gain, { color: palette.ore }]}>
+              {LAYERS.ore.glyph} +{format(summary.oreGained, { notation })} Ore
             </Text>
           )}
           {summary.fluxGained.gt(0) && (
@@ -86,25 +86,27 @@ const styles = StyleSheet.create({
     backgroundColor: palette.panel,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 12,
+    borderTopColor: palette.core,
+    borderTopWidth: 2,
+    borderRadius: radius.lg,
     padding: spacing.xl,
     alignItems: 'center',
     width: '100%',
     maxWidth: 360,
   },
-  title: { color: palette.dim, fontSize: 11, fontWeight: '800', letterSpacing: 2 },
-  time: { color: palette.ink, fontSize: 22, fontWeight: '800', marginVertical: spacing.sm, ...mono },
-  gain: { fontSize: 15, fontWeight: '700', marginTop: 4, ...mono },
-  gainNone: { color: palette.dim, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  title: { ...type.label, color: palette.faint },
+  time: { ...type.display, color: palette.ink, marginVertical: spacing.sm },
+  gain: { ...type.figure, fontSize: 15, marginTop: 4 },
+  gainNone: { ...type.body, color: palette.dim, marginTop: 4, textAlign: 'center' },
   button: {
     marginTop: spacing.lg,
-    backgroundColor: palette.coreDeep,
-    borderRadius: 8,
+    backgroundColor: palette.core,
+    borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xl,
   },
-  buttonText: { color: palette.bgDeep, fontSize: 14, fontWeight: '800' },
+  buttonText: { ...type.label, fontSize: 12, color: palette.bgDeep },
   rewardButton: { backgroundColor: palette.orbiter, marginBottom: spacing.sm },
-  rewardText: { color: palette.bgDeep, fontSize: 13, fontWeight: '800' },
+  rewardText: { ...type.label, fontSize: 12, color: palette.bgDeep },
   buttonBusy: { opacity: 0.6 },
 });

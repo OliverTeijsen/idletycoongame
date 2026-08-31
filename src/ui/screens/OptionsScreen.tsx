@@ -5,7 +5,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { NotationMode } from '../../game/types';
 import { exportSave, importSave } from '../../services/storage';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { mono, palette, radius, spacing, type } from '../theme';
 
 const NOTATIONS: NotationMode[] = ['standard', 'scientific', 'engineering'];
 
@@ -27,7 +28,7 @@ export function OptionsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Text style={styles.section}>NOTATION</Text>
+      <SectionHeader label="Notation" accent={palette.core} />
       <View style={styles.rowGroup}>
         {NOTATIONS.map((n) => (
           <Pressable
@@ -42,7 +43,7 @@ export function OptionsScreen() {
         ))}
       </View>
 
-      <Text style={styles.section}>PREFERENCES</Text>
+      <SectionHeader label="Preferences" accent={palette.orbiter} />
       <ToggleRow
         label="Reduced motion"
         value={game.options.reducedMotion}
@@ -59,7 +60,7 @@ export function OptionsScreen() {
         onToggle={(v) => setOptions({ showOfflineSummary: v })}
       />
 
-      <Text style={styles.section}>SOUND</Text>
+      <SectionHeader label="Sound" accent={palette.mote} />
       <ToggleRow
         label="Muted"
         value={game.options.muted}
@@ -91,7 +92,7 @@ export function OptionsScreen() {
         ))}
       </View>
 
-      <Text style={styles.section}>SAVE</Text>
+      <SectionHeader label="Save" accent={palette.aeon} />
       <Pressable style={styles.button} onPress={() => setExported(exportSave(game))}>
         <Text style={styles.buttonText}>Export save</Text>
       </Pressable>
@@ -131,7 +132,7 @@ export function OptionsScreen() {
       </Pressable>
       {importError && <Text style={styles.error}>That is not a valid save.</Text>}
 
-      <Text style={styles.section}>DANGER</Text>
+      <SectionHeader label="Danger" accent={palette.danger} />
       {!confirmReset ? (
         <Pressable style={[styles.button, styles.dangerButton]} onPress={() => setConfirmReset(true)}>
           <Text style={styles.dangerText}>Hard reset…</Text>
@@ -174,56 +175,48 @@ function ToggleRow({
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
   rowGroup: { flexDirection: 'row', gap: spacing.sm },
   chip: {
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
-    borderRadius: 6,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.line,
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
   },
-  chipActive: { borderColor: palette.core, backgroundColor: '#241a0d' },
-  chipText: { color: palette.dim, fontSize: 12, fontWeight: '700' },
+  chipActive: { borderColor: palette.core, backgroundColor: palette.panelWarm },
+  chipText: { ...type.label, fontSize: 10, color: palette.faint },
   chipTextActive: { color: palette.core },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     padding: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: 6,
   },
-  toggleLabel: { color: palette.ink, fontSize: 13, fontWeight: '600' },
-  toggleState: { color: palette.dim, fontSize: 12, fontWeight: '800', ...mono },
+  toggleLabel: { ...type.title, fontSize: 13, fontWeight: '600', color: palette.ink },
+  toggleState: { ...type.label, fontSize: 10, color: palette.faint },
   toggleOn: { color: palette.orbiter },
   button: {
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     padding: spacing.md,
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: 6,
   },
-  buttonText: { color: palette.ink, fontSize: 13, fontWeight: '700' },
+  buttonText: { ...type.label, fontSize: 11, color: palette.ink },
   blob: {
     backgroundColor: palette.bgDeep,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     color: palette.dim,
     fontSize: 10,
     padding: spacing.sm,
@@ -232,8 +225,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     ...mono,
   },
-  error: { color: palette.danger, fontSize: 12, marginBottom: spacing.sm },
-  stat: { color: palette.ink, fontSize: 13, marginBottom: 4, ...mono },
+  error: { ...type.body, color: palette.danger, marginBottom: spacing.sm },
+  stat: { ...type.body, ...mono, color: palette.ink, marginBottom: 4 },
   dangerButton: { borderColor: palette.danger },
-  dangerText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
+  dangerText: { ...type.label, fontSize: 11, color: palette.danger },
 });

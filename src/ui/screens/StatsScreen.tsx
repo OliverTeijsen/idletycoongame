@@ -18,15 +18,16 @@ import { oreRate } from '../../game/systems/minerals';
 import { moteRate } from '../../game/systems/motes';
 import { multBreakdown } from '../../game/systems/multipliers';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 
 const GROUP_LABELS: Record<string, string> = {
-  spark: 'SPARK',
-  orbiters: 'ORBITERS',
-  motes: 'MOTES',
-  prestige: 'PRESTIGE',
-  depths: 'THE DEPTHS',
-  mastery: 'MASTERY',
+  spark: 'Spark',
+  orbiters: 'Orbiters',
+  motes: 'Motes',
+  prestige: 'Prestige',
+  depths: 'The depths',
+  mastery: 'Mastery',
 };
 
 export function StatsScreen() {
@@ -39,7 +40,7 @@ export function StatsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Text style={styles.section}>MULTIPLIER STACK</Text>
+      <SectionHeader label="Multiplier stack" accent={palette.core} />
       <Text style={styles.blurb}>
         Every source that feeds production, composed in order. ×1.00 means that source is not
         contributing yet.
@@ -63,23 +64,23 @@ export function StatsScreen() {
         );
       })}
 
-      <Text style={styles.section}>RATES</Text>
-      <Stat label="Spark / second" value={`✦ ${format(sparkRate(game), { notation })}`} />
-      <Stat label="Motes / second" value={`◦ ${format(moteRate(game), { notation, small: true })}`} />
+      <SectionHeader label="Rates" accent={palette.orbiter} />
+      <Stat label="Spark / second" value={`${LAYERS.spark.glyph} ${format(sparkRate(game), { notation })}`} />
+      <Stat label="Motes / second" value={`${LAYERS.mote.glyph} ${format(moteRate(game), { notation, small: true })}`} />
       {game.converges > 0 && (
-        <Stat label="Ore / second" value={`⛏ ${format(oreRate(game), { notation, small: true })}`} />
+        <Stat label="Ore / second" value={`${LAYERS.ore.glyph} ${format(oreRate(game), { notation, small: true })}`} />
       )}
 
-      <Text style={styles.section}>LIFETIME</Text>
-      <Stat label="Total Spark earned" value={`✦ ${format(game.totalSpark, { notation })}`} />
-      <Stat label="Best Spark this run" value={`✦ ${format(game.bestSparkRun, { notation })}`} />
-      <Stat label="Motes ever" value={`◦ ${format(game.motesEver, { notation })}`} />
-      <Stat label="Shards ever" value={`◆ ${formatWhole(game.shardsEver, notation)}`} />
-      <Stat label="Prism ever" value={`▲ ${formatWhole(game.prismEver, notation)}`} />
-      <Stat label="Aeon ever" value={`✧ ${formatWhole(game.aeonEver, notation)}`} />
-      <Stat label="Singularity ever" value={`⦿ ${formatWhole(game.singularityEver, notation)}`} />
+      <SectionHeader label="Lifetime" accent={palette.dim} />
+      <Stat label="Total Spark earned" value={`${LAYERS.spark.glyph} ${format(game.totalSpark, { notation })}`} />
+      <Stat label="Best Spark this run" value={`${LAYERS.spark.glyph} ${format(game.bestSparkRun, { notation })}`} />
+      <Stat label="Motes ever" value={`${LAYERS.mote.glyph} ${format(game.motesEver, { notation })}`} />
+      <Stat label="Shards ever" value={`${LAYERS.shard.glyph} ${formatWhole(game.shardsEver, notation)}`} />
+      <Stat label="Prism ever" value={`${LAYERS.prism.glyph} ${formatWhole(game.prismEver, notation)}`} />
+      <Stat label="Aeon ever" value={`${LAYERS.aeon.glyph} ${formatWhole(game.aeonEver, notation)}`} />
+      <Stat label="Singularity ever" value={`${LAYERS.singularity.glyph} ${formatWhole(game.singularityEver, notation)}`} />
 
-      <Text style={styles.section}>RESETS</Text>
+      <SectionHeader label="Resets" accent={palette.shard} />
       <Stat label="Dimension Boosts" value={String(game.dimBoosts)} />
       <Stat label="Collapses" value={String(game.collapses)} />
       <Stat label="Ascends" value={String(game.ascends)} />
@@ -88,12 +89,17 @@ export function StatsScreen() {
       <Stat label="Core taps" value={String(game.totalTaps)} />
       <Stat label="Time played" value={formatTime(game.timePlayed)} />
 
-      <Text style={styles.section}>
-        ACHIEVEMENTS · {earned}/{ACHIEVEMENTS.length} · ×
-        {format(breakdown[0].value, { notation })}
-      </Text>
+      <SectionHeader
+        label="Achievements"
+        accent={palette.core}
+        trailing={
+          <Text style={styles.statValue}>
+            {earned}/{ACHIEVEMENTS.length} · ×{format(breakdown[0].value, { notation })}
+          </Text>
+        }
+      />
       <Pressable style={styles.toggle} onPress={() => setShowAll((v) => !v)}>
-        <Text style={styles.toggleText}>{showAll ? 'show earned only' : 'show all'}</Text>
+        <Text style={styles.toggleText}>{showAll ? 'Show earned only' : 'Show all'}</Text>
       </Pressable>
       {Object.keys(GROUP_LABELS).map((group) => {
         const defs = ACHIEVEMENTS.filter((a) => a.group === group);
@@ -131,16 +137,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  blurb: { color: palette.dim, fontSize: 11, lineHeight: 16, marginBottom: spacing.sm },
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
+  blurb: { ...type.micro, color: palette.dim, marginBottom: spacing.sm },
   multRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -150,56 +148,48 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.line,
   },
   multTotal: { borderBottomWidth: 0, marginTop: 4, borderTopWidth: 1, borderTopColor: palette.core },
-  multLabel: { color: palette.ink, fontSize: 12 },
-  multLabelTotal: { color: palette.core, fontWeight: '800' },
+  multLabel: { ...type.body, color: palette.dim },
+  multLabelTotal: { color: palette.core, fontWeight: '700' },
   multValue: { fontSize: 12, fontWeight: '700', ...mono },
-  multActive: { color: palette.orbiter },
-  multIdle: { color: palette.dim, opacity: 0.6 },
+  multActive: { color: palette.ink },
+  /** A multiplier sitting at exactly x1 is noise — recede it, don't hide it. */
+  multIdle: { color: palette.faint },
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
   },
-  statLabel: { color: palette.dim, fontSize: 12 },
+  statLabel: { ...type.body, color: palette.dim },
   statValue: { color: palette.ink, fontSize: 12, fontWeight: '700', ...mono },
   toggle: {
     alignSelf: 'flex-start',
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: radius.md,
     paddingVertical: 4,
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.sm,
   },
-  toggleText: { color: palette.dim, fontSize: 11 },
-  groupLabel: {
-    color: palette.dim,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: spacing.md,
-    marginBottom: 4,
-    opacity: 0.7,
-  },
+  toggleText: { ...type.micro, color: palette.dim },
+  groupLabel: { ...type.label, color: palette.faint, marginTop: spacing.md, marginBottom: 4 },
   achRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: radius.sm,
     paddingVertical: 6,
     paddingHorizontal: spacing.sm,
     marginBottom: 4,
     gap: spacing.sm,
-    opacity: 0.55,
   },
-  achRowGot: { opacity: 1, borderColor: palette.core },
-  achMark: { color: palette.dim, fontSize: 14, width: 16, textAlign: 'center' },
+  achRowGot: { backgroundColor: palette.panel, borderColor: palette.core },
+  achMark: { color: palette.faint, fontSize: 13, width: 16, textAlign: 'center' },
   achMarkGot: { color: palette.core },
   achBody: { flex: 1 },
-  achName: { color: palette.dim, fontSize: 12, fontWeight: '700' },
+  achName: { ...type.title, fontSize: 12, color: palette.faint },
   achNameGot: { color: palette.ink },
-  achDesc: { color: palette.dim, fontSize: 10, marginTop: 1 },
+  achDesc: { ...type.micro, fontSize: 10, color: palette.faint, marginTop: 1 },
 });

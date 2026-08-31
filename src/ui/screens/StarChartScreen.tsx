@@ -11,7 +11,8 @@ import {
   starChartSpent,
 } from '../../game/systems/starchart';
 import { useGameStore } from '../../state/store';
-import { mono, palette, spacing } from '../theme';
+import { SectionHeader } from '../components/Panel';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 
 export function StarChartScreen() {
   const game = useGameStore((s) => s.game);
@@ -25,24 +26,34 @@ export function StarChartScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.header}>
-        <Text style={styles.shards}>◆ {formatWhole(game.shards, notation)}</Text>
-        {spent.gt(0) && (
-          <Pressable style={styles.respec} onPress={respec}>
-            <Text style={styles.respecText}>respec (refund ◆ {formatWhole(spent, notation)})</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <Text style={styles.section}>INNER RING</Text>
+      <SectionHeader
+        label="Inner ring"
+        accent={palette.shard}
+        trailing={
+          <Text style={styles.shards}>
+            {LAYERS.shard.glyph} {formatWhole(game.shards, notation)}
+          </Text>
+        }
+      />
       {ring1.map((node) => (
         <NodeRow key={node.id} node={node} onBuy={() => buyStarNode(node.id)} />
       ))}
 
-      <Text style={styles.section}>OUTER RING · 🔒 unlocks at Ascend</Text>
+      <SectionHeader
+        label={ringUnlocked(game, 2) ? 'Outer ring' : 'Outer ring · opens at Ascend'}
+        accent={ringUnlocked(game, 2) ? palette.shard : palette.faint}
+      />
       {ring2.map((node) => (
         <NodeRow key={node.id} node={node} onBuy={() => buyStarNode(node.id)} />
       ))}
+
+      {spent.gt(0) && (
+        <Pressable style={styles.respec} onPress={respec}>
+          <Text style={styles.respecText}>
+            Refund every node · {LAYERS.shard.glyph} {formatWhole(spent, notation)} back
+          </Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -61,7 +72,7 @@ function NodeRow({ node, onBuy }: { node: StarNodeDef; onBuy(): void }) {
       disabled={!buyable}
       style={[styles.node, active && styles.nodeActive, (ringLocked || prereqMissing) && styles.nodeDim]}
     >
-      <View style={[styles.dot, { backgroundColor: active ? palette.shard : palette.line }]} />
+      <View style={[styles.edge, { backgroundColor: active ? palette.shard : palette.line }]} />
       <View style={styles.body}>
         <Text style={[styles.name, active && { color: palette.shard }]}>{node.name}</Text>
         <Text style={styles.desc}>
@@ -69,54 +80,49 @@ function NodeRow({ node, onBuy }: { node: StarNodeDef; onBuy(): void }) {
           {prereqMissing && !active
             ? ` · needs ${node.requires.map((r) => BAL.starChart.find((n) => n.id === r)?.name ?? r).join(', ')}`
             : ''}
+          {ringLocked && !active ? ' · opens at Ascend' : ''}
         </Text>
       </View>
       <Text style={[styles.cost, buyable ? styles.costOk : styles.costNo]}>
-        {active ? '●' : `◆ ${formatWhole(node.cost, notation)}`}
+        {active ? 'ON' : `${LAYERS.shard.glyph} ${formatWhole(node.cost, notation)}`}
       </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  shards: { color: palette.shard, fontSize: 16, fontWeight: '800', ...mono },
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
+  shards: { ...type.figure, fontSize: 14, color: palette.shard },
   respec: {
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-  },
-  respecText: { color: palette.dim, fontSize: 11 },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
+    alignItems: 'center',
   },
+  respecText: { ...type.micro, color: palette.dim },
   node: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.panel,
+    backgroundColor: palette.bg,
     borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    paddingRight: spacing.md,
+    marginBottom: 6,
     gap: spacing.md,
+    overflow: 'hidden',
   },
-  nodeActive: { borderColor: palette.shard, backgroundColor: '#161022' },
-  nodeDim: { opacity: 0.5 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  body: { flex: 1 },
-  name: { color: palette.ink, fontSize: 14, fontWeight: '700' },
-  desc: { color: palette.dim, fontSize: 11, marginTop: 2 },
-  cost: { fontSize: 13, fontWeight: '700', ...mono },
+  /** An owned node is lit from its edge, like every other live object. */
+  nodeActive: { backgroundColor: palette.panel, borderColor: palette.shard },
+  nodeDim: { opacity: 0.45 },
+  edge: { width: 3, alignSelf: 'stretch', marginVertical: -spacing.sm },
+  body: { flex: 1, paddingVertical: 1 },
+  name: { ...type.title, color: palette.ink },
+  desc: { ...type.micro, color: palette.dim, marginTop: 3 },
+  cost: { ...type.label, fontSize: 11, ...mono },
   costOk: { color: palette.shard },
-  costNo: { color: palette.dim },
+  costNo: { color: palette.faint },
 });

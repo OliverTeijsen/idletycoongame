@@ -44,12 +44,15 @@ describe('converge gating & gain', () => {
     expect(doConverge(s)).toBe(false);
   });
 
-  it('gain is floor(log2(prismEver + 1)) — slow on purpose', () => {
+  it('gain is floor((prismEver/coef)^exp) — sublinear, but not a log', () => {
     const s = defaultState(0);
-    s.prismEver = D(255); // log2(256) = 8
-    expect(convergeGain(s).toNumber()).toBe(8);
-    s.prismEver = D(1023);
+    s.prismEver = D(200); // sqrt(200/2) = 10
     expect(convergeGain(s).toNumber()).toBe(10);
+    s.prismEver = D(1250); // sqrt(625) = 25
+    expect(convergeGain(s).toNumber()).toBe(25);
+    // The point of the power law: 6× the Prism must be worth well over 6/5
+    // the Aeon, or a Converge stops ever being worth taking (see BAL.converge).
+    expect(convergeGain(s).gt(D(2).mul(10))).toBe(true);
   });
 
   it('spending Prism on the grid never delays Converge', () => {
@@ -67,9 +70,9 @@ describe('converge reset semantics', () => {
     expect(canConverge(s)).toBe(true);
     expect(doConverge(s)).toBe(true);
 
-    // gained: floor(log2(255 + 1)) = 8
-    expect(s.aeon.toNumber()).toBe(8);
-    expect(s.aeonEver.toNumber()).toBe(8);
+    // gained: floor(sqrt(255 / 2)) = 11
+    expect(s.aeon.toNumber()).toBe(11);
+    expect(s.aeonEver.toNumber()).toBe(11);
     expect(s.converges).toBe(1);
 
     // P2 layer gone

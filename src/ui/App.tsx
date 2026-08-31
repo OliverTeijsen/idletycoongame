@@ -31,7 +31,7 @@ import { OptionsScreen } from './screens/OptionsScreen';
 import { PrestigeScreen } from './screens/PrestigeScreen';
 import { StarChartScreen } from './screens/StarChartScreen';
 import { StatsScreen } from './screens/StatsScreen';
-import { MAX_CONTENT_WIDTH, palette, spacing } from './theme';
+import { LAYERS, MAX_CONTENT_WIDTH, mono, palette, spacing, type } from './theme';
 
 type TabId =
   | 'core'
@@ -89,15 +89,17 @@ export default function App() {
   const showAuto = automationUnlocked(game);
 
   // §11: always show exactly one locked teaser — the nearest thing the
-  // player has not reached yet — so there is always a visible next goal.
+  // player has not reached yet — so there is always a visible next goal. It
+  // wears the hue of the layer it opens, so the teaser reads as a preview of
+  // where the spectrum rule is about to grow.
   const nextGoal = !showPrestige
-    ? { label: 'COLLAPSE', hint: `✦ ${format(BAL.collapse.unlockSpark)}` }
+    ? { label: 'Collapse', hint: `${LAYERS.spark.glyph} ${format(BAL.collapse.unlockSpark)}`, color: LAYERS.shard.color }
     : !showElements
-      ? { label: 'ASCEND', hint: `◆ ${format(BAL.ascend.unlockShards)}` }
+      ? { label: 'Ascend', hint: `${LAYERS.shard.glyph} ${format(BAL.ascend.unlockShards)}`, color: LAYERS.prism.color }
       : !showMine
-        ? { label: 'CONVERGE', hint: `▲ ${format(BAL.converge.unlockPrism)}` }
+        ? { label: 'Converge', hint: `${LAYERS.prism.glyph} ${format(BAL.converge.unlockPrism)}`, color: LAYERS.aeon.color }
         : game.unifies === 0
-          ? { label: 'UNIFY', hint: `✧ ${format(BAL.unify.unlockAeon)}` }
+          ? { label: 'Unify', hint: `${LAYERS.aeon.glyph} ${format(BAL.unify.unlockAeon)}`, color: LAYERS.singularity.color }
           : null;
 
   // A tab can disappear on hard reset — fall back to Core.
@@ -136,19 +138,35 @@ export default function App() {
             style={styles.tabBar}
             contentContainerStyle={styles.tabBarContent}
           >
-            <Tab label="CORE" active={activeTab === 'core'} onPress={() => setTab('core')} />
-            {showMotes && <Tab label="MOTES" active={activeTab === 'motes'} onPress={() => setTab('motes')} />}
-            {showPrestige && (
-              <Tab label="PRESTIGE" active={activeTab === 'prestige'} onPress={() => setTab('prestige')} />
+            {/* Each tab's indicator wears the hue of the layer it opens, so the
+                tab bar reads as the same spectrum as the rule up top. */}
+            <Tab label="Core" accent={LAYERS.spark.color} active={activeTab === 'core'} onPress={() => setTab('core')} />
+            {showMotes && (
+              <Tab label="Motes" accent={LAYERS.mote.color} active={activeTab === 'motes'} onPress={() => setTab('motes')} />
             )}
-            {showChart && <Tab label="CHART" active={activeTab === 'chart'} onPress={() => setTab('chart')} />}
-            {showElements && <Tab label="ELEMENTS" active={activeTab === 'elements'} onPress={() => setTab('elements')} />}
-            {showChallenges && <Tab label="TRIALS" active={activeTab === 'challenges'} onPress={() => setTab('challenges')} />}
-            {showMine && <Tab label="MINE" active={activeTab === 'mine'} onPress={() => setTab('mine')} />}
-            {showAuto && <Tab label="AUTO" active={activeTab === 'auto'} onPress={() => setTab('auto')} />}
-            {nextGoal && <Tab label={nextGoal.label} locked lockHint={nextGoal.hint} />}
-            <Tab label="STATS" active={activeTab === 'stats'} onPress={() => setTab('stats')} />
-            <Tab label="OPTIONS" active={activeTab === 'options'} onPress={() => setTab('options')} />
+            {showPrestige && (
+              <Tab label="Prestige" accent={LAYERS.shard.color} active={activeTab === 'prestige'} onPress={() => setTab('prestige')} />
+            )}
+            {showChart && (
+              <Tab label="Chart" accent={LAYERS.shard.color} active={activeTab === 'chart'} onPress={() => setTab('chart')} />
+            )}
+            {showElements && (
+              <Tab label="Elements" accent={LAYERS.prism.color} active={activeTab === 'elements'} onPress={() => setTab('elements')} />
+            )}
+            {showChallenges && (
+              <Tab label="Trials" accent={LAYERS.prism.color} active={activeTab === 'challenges'} onPress={() => setTab('challenges')} />
+            )}
+            {showMine && (
+              <Tab label="Mine" accent={LAYERS.ore.color} active={activeTab === 'mine'} onPress={() => setTab('mine')} />
+            )}
+            {showAuto && (
+              <Tab label="Auto" accent={LAYERS.aeon.color} active={activeTab === 'auto'} onPress={() => setTab('auto')} />
+            )}
+            {nextGoal && (
+              <Tab label={nextGoal.label} locked lockHint={nextGoal.hint} accent={nextGoal.color} />
+            )}
+            <Tab label="Stats" active={activeTab === 'stats'} onPress={() => setTab('stats')} />
+            <Tab label="Options" active={activeTab === 'options'} onPress={() => setTab('options')} />
           </ScrollView>
         </View>
         <OfflineModal />
@@ -158,25 +176,48 @@ export default function App() {
   );
 }
 
+/**
+ * A channel on the plate: the label, lit from its top edge when selected.
+ *
+ * The indicator is a rule, not a filled pill — the whole app draws state with
+ * edges rather than boxes, and a 2px rule in the layer's own hue tells you
+ * both where you are and which layer you are looking at.
+ */
 function Tab({
   label,
   active,
   locked,
   lockHint,
+  accent = palette.core,
   onPress,
 }: {
   label: string;
   active?: boolean;
   locked?: boolean;
   lockHint?: string;
+  accent?: string;
   onPress?(): void;
 }) {
   return (
     <Pressable style={styles.tab} onPress={onPress} disabled={locked}>
-      <Text style={[styles.tabText, active && styles.tabActive, locked && styles.tabLocked]}>
-        {locked ? `🔒 ${label}` : label}
+      <View
+        style={[
+          styles.tabIndicator,
+          { backgroundColor: accent, opacity: active ? 1 : 0 },
+        ]}
+      />
+      <Text
+        style={[
+          styles.tabText,
+          active && { color: accent },
+          locked && styles.tabLocked,
+        ]}
+      >
+        {label}
       </Text>
-      {locked && lockHint && <Text style={styles.lockHint}>{lockHint}</Text>}
+      {locked && lockHint && (
+        <Text style={[styles.lockHint, { color: accent }]}>{lockHint}</Text>
+      )}
     </Pressable>
   );
 }
@@ -198,15 +239,16 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   tabBarContent: {
-    paddingVertical: spacing.sm,
+    paddingBottom: spacing.sm,
     paddingHorizontal: spacing.sm,
     gap: spacing.md,
     minWidth: '100%',
     justifyContent: 'space-around',
   },
-  tab: { alignItems: 'center', paddingVertical: 4, paddingHorizontal: 2 },
-  tabText: { color: palette.dim, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  tabActive: { color: palette.core },
-  tabLocked: { opacity: 0.5 },
-  lockHint: { color: palette.dim, fontSize: 9, marginTop: 1, opacity: 0.7 },
+  tab: { alignItems: 'center', paddingBottom: 4, paddingHorizontal: 2, gap: 5 },
+  /** Reserves its own height whether lit or not, so nothing shifts on tap. */
+  tabIndicator: { height: 2, alignSelf: 'stretch', minWidth: 22, borderRadius: 1 },
+  tabText: { ...type.label, color: palette.dim },
+  tabLocked: { color: palette.faint },
+  lockHint: { ...type.micro, fontSize: 9, opacity: 0.8, ...mono },
 });

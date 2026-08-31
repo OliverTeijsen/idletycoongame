@@ -9,7 +9,7 @@ import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native
 import { playCue } from '../../audio';
 import { achievementDef } from '../../game/systems/achievements';
 import { useGameStore } from '../../state/store';
-import { palette, spacing } from '../theme';
+import { palette, radius, spacing, type } from '../theme';
 
 const NATIVE = Platform.OS !== 'web';
 
@@ -62,7 +62,7 @@ function Toast({ id, reduced }: { id: string; reduced: boolean }) {
             },
       ]}
     >
-      <Text style={styles.label}>ACHIEVEMENT</Text>
+      <Text style={styles.label}>Achievement</Text>
       <Text style={styles.name}>{def.name}</Text>
       <Text style={styles.desc}>{def.desc}</Text>
     </Animated.View>
@@ -93,15 +93,22 @@ const styles = StyleSheet.create({
   },
   toast: {
     backgroundColor: palette.panel,
-    borderColor: palette.core,
+    borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 10,
+    borderTopColor: palette.core,
+    borderTopWidth: 2,
+    borderRadius: radius.lg,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     maxWidth: 320,
+    // The core's light reaches the toast too — same one source, everywhere.
+    shadowColor: palette.core,
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
   },
-  label: { color: palette.core, fontSize: 9, fontWeight: '800', letterSpacing: 2 },
-  name: { color: palette.ink, fontSize: 15, fontWeight: '800', marginTop: 2 },
-  desc: { color: palette.dim, fontSize: 11, marginTop: 1, textAlign: 'center' },
+  label: { ...type.label, fontSize: 9, color: palette.core },
+  name: { ...type.title, fontSize: 15, color: palette.ink, marginTop: 3 },
+  desc: { ...type.micro, color: palette.dim, marginTop: 2, textAlign: 'center' },
 });

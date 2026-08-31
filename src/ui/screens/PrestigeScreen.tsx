@@ -1,9 +1,18 @@
-/** Prestige tab: the Collapse card + the Shard upgrade tree (spec §7, §11). */
+/**
+ * Prestige tab: the four reset layers and their trees (spec §7, §11).
+ *
+ * All four layers are ONE card component wearing four hues. They were four
+ * hand-built copies of the same JSX before, which is both why they drifted
+ * (each had its own gain wording, its own button copy, its own padding) and
+ * why the screen read as a wall — nothing distinguished a Collapse from a
+ * Unify except the border colour. Now the layer's hue is the only thing that
+ * varies, so the depth of the reset is what the eye picks up.
+ */
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
-import { format, formatWhole } from '../../game/numbers';
+import { formatWhole, format } from '../../game/numbers';
 import {
   aeonNodeOwned,
   ascendGain,
@@ -24,8 +33,9 @@ import {
 } from '../../game/systems/prestige';
 import { shardUpgradeLevel } from '../../game/systems/shardperks';
 import { useGameStore } from '../../state/store';
+import { Card, SectionHeader } from '../components/Panel';
 import { Row } from '../components/Row';
-import { mono, palette, spacing } from '../theme';
+import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
 
 export function PrestigeScreen() {
   const game = useGameStore((s) => s.game);
@@ -37,115 +47,51 @@ export function PrestigeScreen() {
   const buyAeonNode = useGameStore((s) => s.buyAeonNode);
   const unify = useGameStore((s) => s.unify);
   const buyMetaUpgrade = useGameStore((s) => s.buyMetaUpgrade);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmingAscend, setConfirmingAscend] = useState(false);
-  const [confirmingConverge, setConfirmingConverge] = useState(false);
-  const [confirmingUnify, setConfirmingUnify] = useState(false);
   const notation = game.options.notation;
 
-  const gain = collapseGain(game);
-  const ready = canCollapse(game);
   const showAscend = ascendUnlocked(game);
-  const aGain = ascendGain(game);
-  const aReady = canAscend(game);
-
-  const onCollapsePress = () => {
-    if (!ready) return;
-    if (game.options.confirmResets && !confirming) {
-      setConfirming(true);
-      return;
-    }
-    setConfirming(false);
-    collapse();
-  };
-
-  const onAscendPress = () => {
-    if (!aReady) return;
-    if (game.options.confirmResets && !confirmingAscend) {
-      setConfirmingAscend(true);
-      return;
-    }
-    setConfirmingAscend(false);
-    ascend();
-  };
-
   const showConverge = convergeUnlocked(game);
-  const cGain = convergeGain(game);
-  const cReady = canConverge(game);
-
-  const onConvergePress = () => {
-    if (!cReady) return;
-    if (game.options.confirmResets && !confirmingConverge) {
-      setConfirmingConverge(true);
-      return;
-    }
-    setConfirmingConverge(false);
-    converge();
-  };
-
   const showUnify = unifyUnlocked(game);
-  const uGain = unifyGain(game);
-  const uReady = canUnify(game);
   const needsSeed = !game.research['singularitySeed'] && game.bestAeon.gte(BAL.unify.unlockAeon);
-
-  const onUnifyPress = () => {
-    if (!uReady) return;
-    if (game.options.confirmResets && !confirmingUnify) {
-      setConfirmingUnify(true);
-      return;
-    }
-    setConfirmingUnify(false);
-    unify();
-  };
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>COLLAPSE</Text>
-        <Text style={styles.gain}>
-          ◆ +{formatWhole(gain, notation)} <Text style={styles.gainLabel}>Shards</Text>
-        </Text>
-        <Text style={styles.detail}>
-          best this run: ✦ {format(game.bestSparkRun, { notation })} · gain rises with √spark
-        </Text>
-        <Text style={styles.resets}>
-          Resets: Spark, Orbiters, Spark upgrades, Motes & upgrades, Dimension Boosts
-        </Text>
-        <Text style={styles.keeps}>Keeps: Shards, Star Chart, Shard upgrades, automation</Text>
-        <Pressable
-          onPress={onCollapsePress}
-          disabled={!ready}
-          style={[styles.button, !ready && styles.buttonLocked, confirming && styles.buttonConfirm]}
-        >
-          <Text style={[styles.buttonText, confirming && styles.buttonConfirmText]}>
-            {!ready
-              ? `reach ✦ ${format(BAL.collapse.unlockSpark, { notation })} first`
-              : confirming
-                ? 'TAP AGAIN TO CONFIRM'
-                : 'COLLAPSE THE CORE'}
-          </Text>
-        </Pressable>
-        {confirming && (
-          <Pressable onPress={() => setConfirming(false)}>
-            <Text style={styles.cancel}>cancel</Text>
-          </Pressable>
-        )}
-      </View>
+      <PrestigeCard
+        layer={LAYERS.shard}
+        name="Collapse"
+        gain={formatWhole(collapseGain(game), notation)}
+        ready={canCollapse(game)}
+        confirmNeeded={game.options.confirmResets}
+        measure={{ label: 'Best Spark this run', value: `${LAYERS.spark.glyph} ${format(game.bestSparkRun, { notation })}` }}
+        note={`One Shard per ${(1 / BAL.collapse.perDecade).toFixed(1)} decades of Spark.`}
+        resets="Spark, orbiters, Spark upgrades, Motes and upgrades, Dimension Boosts"
+        keeps="Shards, Star Chart, Shard upgrades, automation"
+        action="Collapse the core"
+        locked={`Reach ${LAYERS.spark.glyph} ${format(BAL.collapse.unlockSpark, { notation })} first`}
+        onConfirm={collapse}
+      />
 
-      <Text style={styles.section}>SHARD UPGRADES · ◆ {formatWhole(game.shards, notation)}</Text>
+      <SectionHeader
+        label="Shard upgrades"
+        accent={palette.shard}
+        trailing={
+          <Text style={[styles.balance, { color: palette.shard }]}>
+            {LAYERS.shard.glyph} {formatWhole(game.shards, notation)}
+          </Text>
+        }
+      />
       {BAL.shardUpgrades.map((u) => {
         const level = shardUpgradeLevel(game, u.id);
-        const maxed = u.maxLevel !== null && level >= u.maxLevel;
         const cost = shardUpgradeCost(u, level);
         return (
           <Row
             key={u.id}
             color={palette.shard}
             title={u.name}
-            subtext={`${u.desc} · lvl ${level}${u.maxLevel !== null ? `/${u.maxLevel}` : ''}`}
-            costText={`◆ ${formatWhole(cost, notation)}`}
+            subtext={`${u.desc} · level ${level}${u.maxLevel !== null ? ` of ${u.maxLevel}` : ''}`}
+            costText={`${LAYERS.shard.glyph} ${formatWhole(cost, notation)}`}
             affordable={game.shards.gte(cost)}
-            maxed={maxed}
+            maxed={u.maxLevel !== null && level >= u.maxLevel}
             onBuy={() => buyShardUpgrade(u.id)}
           />
         );
@@ -153,60 +99,47 @@ export function PrestigeScreen() {
 
       {showAscend ? (
         <>
-          <View style={[styles.card, styles.ascendCard]}>
-            <Text style={[styles.cardTitle, { color: palette.prism }]}>ASCEND</Text>
-            <Text style={styles.gain}>
-              ▲ +{formatWhole(aGain, notation)} <Text style={[styles.gainLabel, { color: palette.prism }]}>Prism</Text>
-            </Text>
-            <Text style={styles.detail}>
-              best Shards this cycle: ◆ {formatWhole(game.bestShards, notation)} · needs ◆{' '}
-              {formatWhole(BAL.ascend.unlockShards, notation)}
-            </Text>
-            <Text style={styles.resets}>
-              Resets: everything Collapse does, PLUS Shards, the Shard tree and the Star Chart
-            </Text>
-            <Text style={styles.keeps}>Keeps: Prism & grid, Elements, challenge rewards</Text>
-            <Pressable
-              onPress={onAscendPress}
-              disabled={!aReady}
-              style={[
-                styles.button,
-                { backgroundColor: palette.prism },
-                !aReady && styles.buttonLocked,
-                confirmingAscend && styles.buttonConfirm,
-              ]}
-            >
-              <Text style={[styles.buttonText, confirmingAscend && styles.buttonConfirmText]}>
-                {!aReady
-                  ? `reach ◆ ${formatWhole(BAL.ascend.unlockShards, notation)} Shards first`
-                  : confirmingAscend
-                    ? 'TAP AGAIN TO CONFIRM'
-                    : 'ASCEND THE GYRE'}
-              </Text>
-            </Pressable>
-            {confirmingAscend && (
-              <Pressable onPress={() => setConfirmingAscend(false)}>
-                <Text style={styles.cancel}>cancel</Text>
-              </Pressable>
-            )}
-          </View>
+          <PrestigeCard
+            layer={LAYERS.prism}
+            name="Ascend"
+            gain={formatWhole(ascendGain(game), notation)}
+            ready={canAscend(game)}
+            confirmNeeded={game.options.confirmResets}
+            measure={{
+              label: 'Shards earned this cycle',
+              value: `${LAYERS.shard.glyph} ${formatWhole(game.shardsEver, notation)}`,
+            }}
+            note={`Opens at ${LAYERS.shard.glyph} ${formatWhole(BAL.ascend.unlockShards, notation)}. Gain grows with the square root.`}
+            resets="Everything Collapse does, plus Shards, the Shard tree and the Star Chart"
+            keeps="Prism and grid, Elements, trial rewards"
+            action="Ascend the gyre"
+            locked={`Reach ${LAYERS.shard.glyph} ${formatWhole(BAL.ascend.unlockShards, notation)} Shards first`}
+            onConfirm={ascend}
+          />
 
           {game.ascends > 0 && (
             <>
-              <Text style={styles.section}>PRISM GRID · ▲ {formatWhole(game.prism, notation)}</Text>
+              <SectionHeader
+                label="Prism grid"
+                accent={palette.prism}
+                trailing={
+                  <Text style={[styles.balance, { color: palette.prism }]}>
+                    {LAYERS.prism.glyph} {formatWhole(game.prism, notation)}
+                  </Text>
+                }
+              />
               {BAL.prismGrid.map((u) => {
                 const level = prismUpgradeLevel(game, u.id);
-                const maxed = u.maxLevel !== null && level >= u.maxLevel;
                 const cost = prismUpgradeCost(u.id, level);
                 return (
                   <Row
                     key={u.id}
                     color={palette.prism}
                     title={u.name}
-                    subtext={`${u.desc} · lvl ${level}`}
-                    costText={`▲ ${formatWhole(cost, notation)}`}
+                    subtext={`${u.desc} · level ${level}`}
+                    costText={`${LAYERS.prism.glyph} ${formatWhole(cost, notation)}`}
                     affordable={game.prism.gte(cost)}
-                    maxed={maxed}
+                    maxed={u.maxLevel !== null && level >= u.maxLevel}
                     onBuy={() => buyPrismUpgrade(u.id)}
                   />
                 );
@@ -215,139 +148,102 @@ export function PrestigeScreen() {
           )}
         </>
       ) : (
-        <View style={styles.teaser}>
-          <Text style={styles.teaserTitle}>🔒 ASCEND</Text>
-          <Text style={styles.teaserText}>
-            A deeper reset awakens at ◆ {formatWhole(BAL.ascend.unlockShards, notation)} best
-            Shards. It will trade everything below for Prism — and unlock Elements and
-            Challenges.
-          </Text>
-        </View>
+        <Teaser
+          layer={LAYERS.prism}
+          name="Ascend"
+          text={`A deeper reset opens at ${LAYERS.shard.glyph} ${formatWhole(BAL.ascend.unlockShards, notation)} Shards. It trades everything below for Prism, and opens Elements and Trials.`}
+        />
       )}
 
       {game.ascends > 0 &&
         (showConverge ? (
           <>
-            <View style={[styles.card, styles.convergeCard]}>
-              <Text style={[styles.cardTitle, { color: palette.aeon }]}>CONVERGE</Text>
-              <Text style={styles.gain}>
-                ✧ +{formatWhole(cGain, notation)}{' '}
-                <Text style={[styles.gainLabel, { color: palette.aeon }]}>Aeon</Text>
-              </Text>
-              <Text style={styles.detail}>
-                best Prism this cycle: ▲ {formatWhole(game.bestPrism, notation)} · aeon =
-                log2(prism)
-              </Text>
-              <Text style={styles.resets}>
-                Resets: everything Ascend does, PLUS Prism & grid, Element allocation, Ore &
-                Miners
-              </Text>
-              <Text style={styles.keeps}>Keeps: Aeon & tree, Research, element points, trial rewards</Text>
-              <Pressable
-                onPress={onConvergePress}
-                disabled={!cReady}
-                style={[
-                  styles.button,
-                  { backgroundColor: palette.aeon },
-                  !cReady && styles.buttonLocked,
-                  confirmingConverge && styles.buttonConfirm,
-                ]}
-              >
-                <Text style={[styles.buttonText, confirmingConverge && styles.buttonConfirmText]}>
-                  {!cReady
-                    ? `reach ▲ ${formatWhole(BAL.converge.unlockPrism, notation)} Prism first`
-                    : confirmingConverge
-                      ? 'TAP AGAIN TO CONFIRM'
-                      : 'CONVERGE THE RINGS'}
-                </Text>
-              </Pressable>
-              {confirmingConverge && (
-                <Pressable onPress={() => setConfirmingConverge(false)}>
-                  <Text style={styles.cancel}>cancel</Text>
-                </Pressable>
-              )}
-            </View>
+            <PrestigeCard
+              layer={LAYERS.aeon}
+              name="Converge"
+              gain={formatWhole(convergeGain(game), notation)}
+              ready={canConverge(game)}
+              confirmNeeded={game.options.confirmResets}
+              measure={{
+                label: 'Prism earned this cycle',
+                value: `${LAYERS.prism.glyph} ${formatWhole(game.prismEver, notation)}`,
+              }}
+              note={`Opens at ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)}. Every Aeon multiplies all tiers by ${BAL.converge.tierMultPer.toString()}.`}
+              resets="Everything Ascend does, plus Prism and grid, Element allocation, Ore and Miners"
+              keeps="Aeon and tree, Research, element points, trial rewards"
+              action="Converge the rings"
+              locked={`Reach ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism first`}
+              onConfirm={converge}
+            />
 
             {game.converges > 0 && (
               <>
-                <Text style={styles.section}>AEON TREE · ✧ {formatWhole(game.aeon, notation)}</Text>
-                {BAL.aeonTree.map((node) => {
-                  const owned = aeonNodeOwned(game, node.id);
-                  return (
-                    <Row
-                      key={node.id}
-                      color={palette.aeon}
-                      title={node.name}
-                      subtext={node.desc}
-                      costText={`✧ ${formatWhole(node.cost, notation)}`}
-                      affordable={game.aeon.gte(node.cost)}
-                      maxed={owned}
-                      onBuy={() => buyAeonNode(node.id)}
-                    />
-                  );
-                })}
+                <SectionHeader
+                  label="Aeon tree"
+                  accent={palette.aeon}
+                  trailing={
+                    <Text style={[styles.balance, { color: palette.aeon }]}>
+                      {LAYERS.aeon.glyph} {formatWhole(game.aeon, notation)}
+                    </Text>
+                  }
+                />
+                {BAL.aeonTree.map((node) => (
+                  <Row
+                    key={node.id}
+                    color={palette.aeon}
+                    title={node.name}
+                    subtext={node.desc}
+                    costText={`${LAYERS.aeon.glyph} ${formatWhole(node.cost, notation)}`}
+                    affordable={game.aeon.gte(node.cost)}
+                    maxed={aeonNodeOwned(game, node.id)}
+                    onBuy={() => buyAeonNode(node.id)}
+                  />
+                ))}
               </>
             )}
 
             {showUnify ? (
               <>
-                <View style={[styles.card, styles.unifyCard]}>
-                  <Text style={[styles.cardTitle, { color: palette.singularity }]}>UNIFY</Text>
-                  <Text style={styles.gain}>
-                    ⦿ +{formatWhole(uGain, notation)}{' '}
-                    <Text style={[styles.gainLabel, { color: palette.singularity }]}>
-                      Singularity
-                    </Text>
-                  </Text>
-                  <Text style={styles.detail}>
-                    best Aeon this cycle: ✧ {formatWhole(game.bestAeon, notation)}
-                  </Text>
-                  <Text style={styles.resets}>
-                    Resets: EVERYTHING — Aeon & tree, Research, Miners, Flux, and every layer
-                    below
-                  </Text>
-                  <Text style={styles.keeps}>
-                    Keeps: Singularity & Meta Shop, element points, trial rewards
-                  </Text>
-                  <Pressable
-                    onPress={onUnifyPress}
-                    disabled={!uReady}
-                    style={[
-                      styles.button,
-                      { backgroundColor: palette.singularity },
-                      !uReady && styles.buttonLocked,
-                      confirmingUnify && styles.buttonConfirm,
-                    ]}
-                  >
-                    <Text style={[styles.buttonText, confirmingUnify && styles.buttonConfirmText]}>
-                      {!uReady
-                        ? needsSeed
-                          ? 'research the Singularity Seed first'
-                          : `reach ✧ ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon first`
-                        : confirmingUnify
-                          ? 'TAP AGAIN TO CONFIRM'
-                          : 'UNIFY THE GYRE'}
-                    </Text>
-                  </Pressable>
-                  {confirmingUnify && (
-                    <Pressable onPress={() => setConfirmingUnify(false)}>
-                      <Text style={styles.cancel}>cancel</Text>
-                    </Pressable>
-                  )}
-                </View>
+                <PrestigeCard
+                  layer={LAYERS.singularity}
+                  name="Unify"
+                  gain={formatWhole(unifyGain(game), notation)}
+                  ready={canUnify(game)}
+                  confirmNeeded={game.options.confirmResets}
+                  measure={{
+                    label: 'Aeon earned this cycle',
+                    value: `${LAYERS.aeon.glyph} ${formatWhole(game.aeonEver, notation)}`,
+                  }}
+                  note={`Every Singularity multiplies all production by ${BAL.unify.multPer.toString()} — and never resets again.`}
+                  resets="Everything. Aeon and tree, Research, Miners, Flux, and every layer below"
+                  keeps="Singularity and Meta Shop, element points, trial rewards"
+                  action="Unify the gyre"
+                  locked={
+                    needsSeed
+                      ? 'Research the Singularity Seed first'
+                      : `Reach ${LAYERS.aeon.glyph} ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon first`
+                  }
+                  onConfirm={unify}
+                />
 
                 {game.unifies > 0 && (
                   <>
-                    <Text style={styles.section}>
-                      META SHOP · ⦿ {formatWhole(game.singularity, notation)}
-                    </Text>
+                    <SectionHeader
+                      label="Meta shop"
+                      accent={palette.singularity}
+                      trailing={
+                        <Text style={[styles.balance, { color: palette.singularity }]}>
+                          {LAYERS.singularity.glyph} {formatWhole(game.singularity, notation)}
+                        </Text>
+                      }
+                    />
                     {BAL.metaShop.map((def) => (
                       <Row
                         key={def.id}
                         color={palette.singularity}
                         title={def.name}
                         subtext={def.desc}
-                        costText={`⦿ ${formatWhole(def.cost, notation)}`}
+                        costText={`${LAYERS.singularity.glyph} ${formatWhole(def.cost, notation)}`}
                         affordable={game.singularity.gte(def.cost)}
                         maxed={metaOwned(game, def.id)}
                         onBuy={() => buyMetaUpgrade(def.id)}
@@ -358,77 +254,200 @@ export function PrestigeScreen() {
               </>
             ) : (
               game.converges > 0 && (
-                <View style={styles.teaser}>
-                  <Text style={[styles.teaserTitle, { color: palette.singularity }]}>🔒 UNIFY</Text>
-                  <Text style={styles.teaserText}>
-                    The final layer awakens at ✧ {formatWhole(BAL.unify.unlockAeon, notation)}{' '}
-                    Aeon, once the Singularity Seed is researched. It resets everything — for a
-                    multiplier that never resets again.
-                  </Text>
-                </View>
+                <Teaser
+                  layer={LAYERS.singularity}
+                  name="Unify"
+                  text={`The last layer opens at ${LAYERS.aeon.glyph} ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon, once the Singularity Seed is researched. It resets everything, for a multiplier that never resets again.`}
+                />
               )
             )}
           </>
         ) : (
-          <View style={styles.teaser}>
-            <Text style={[styles.teaserTitle, { color: palette.aeon }]}>🔒 CONVERGE</Text>
-            <Text style={styles.teaserText}>
-              The third layer awakens at ▲ {formatWhole(BAL.converge.unlockPrism, notation)} Prism
-              — Minerals, Research and Boost Managers await.
-            </Text>
-          </View>
+          <Teaser
+            layer={LAYERS.aeon}
+            name="Converge"
+            text={`The third layer opens at ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism. Minerals, Research and Boost Managers come with it.`}
+          />
         ))}
     </ScrollView>
   );
 }
 
+/**
+ * One reset layer.
+ *
+ * The gain is the loudest thing on the card, because it is the only number
+ * the decision turns on. Underneath, what the reset costs and what it spares
+ * are a two-column definition list rather than two centred sentences — the
+ * player is comparing them, so they have to line up.
+ *
+ * Confirmation is a state of the same button (spec §14), never a dialog: the
+ * button becomes the warning, so the thing you are about to do and the
+ * warning about it are in the same place.
+ */
+function PrestigeCard({
+  layer,
+  name,
+  gain,
+  ready,
+  confirmNeeded,
+  measure,
+  note,
+  resets,
+  keeps,
+  action,
+  locked,
+  onConfirm,
+}: {
+  layer: { glyph: string; color: string; name: string };
+  name: string;
+  gain: string;
+  ready: boolean;
+  confirmNeeded: boolean;
+  measure: { label: string; value: string };
+  note: string;
+  resets: string;
+  keeps: string;
+  action: string;
+  locked: string;
+  onConfirm(): void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  const press = () => {
+    if (!ready) return;
+    if (confirmNeeded && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
+    onConfirm();
+  };
+
+  return (
+    <Card accent={layer.color} active={ready} muted={!ready} style={styles.layerCard}>
+      <View style={styles.layerHead}>
+        <View>
+          <Text style={[styles.layerName, { color: layer.color }]}>{name}</Text>
+          <Text style={styles.layerNote}>{note}</Text>
+        </View>
+        <View style={styles.gainBox}>
+          <Text style={[styles.gain, { color: ready ? layer.color : palette.faint }]}>
+            +{gain}
+          </Text>
+          <Text style={[styles.gainLabel, { color: ready ? layer.color : palette.faint }]}>
+            {layer.glyph} {layer.name}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.measure}>
+        <Text style={styles.defLabel}>{measure.label}</Text>
+        <Text style={styles.measureValue}>{measure.value}</Text>
+      </View>
+
+      <View style={styles.def}>
+        <Text style={styles.defLabel}>Resets</Text>
+        <Text style={styles.defValue}>{resets}</Text>
+      </View>
+      <View style={styles.def}>
+        <Text style={styles.defLabel}>Keeps</Text>
+        <Text style={styles.defValue}>{keeps}</Text>
+      </View>
+
+      <Pressable
+        onPress={press}
+        disabled={!ready}
+        style={[
+          styles.button,
+          ready && { backgroundColor: layer.color },
+          confirming && styles.buttonConfirm,
+        ]}
+      >
+        <Text style={[styles.buttonText, !ready && styles.buttonTextLocked, confirming && styles.buttonTextConfirm]}>
+          {!ready ? locked : confirming ? 'Tap again to confirm' : action}
+        </Text>
+      </Pressable>
+      {confirming && (
+        <Pressable onPress={() => setConfirming(false)} style={styles.cancelHit}>
+          <Text style={styles.cancel}>Cancel</Text>
+        </Pressable>
+      )}
+    </Card>
+  );
+}
+
+/** A layer you can see but not reach yet: outlined, never filled. */
+function Teaser({
+  layer,
+  name,
+  text,
+}: {
+  layer: { glyph: string; color: string };
+  name: string;
+  text: string;
+}) {
+  return (
+    <View style={[styles.teaser, { borderColor: layer.color }]}>
+      <Text style={[styles.teaserTitle, { color: layer.color }]}>
+        {layer.glyph} {name} · locked
+      </Text>
+      <Text style={styles.teaserText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  card: {
-    backgroundColor: '#161022',
-    borderColor: palette.shard,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: spacing.lg,
+  scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
+  balance: { ...type.figure, fontSize: 14 },
+
+  layerCard: { marginTop: spacing.lg, padding: spacing.lg },
+  layerHead: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
+  layerName: { ...type.label, fontSize: 13, letterSpacing: 2.4 },
+  layerNote: { ...type.micro, color: palette.dim, marginTop: 4, maxWidth: 200 },
+  gainBox: { alignItems: 'flex-end' },
+  gain: { ...type.display, fontSize: 28 },
+  gainLabel: { ...type.label, fontSize: 9, opacity: 0.8, marginTop: 1 },
+
+  measure: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.line,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
   },
-  ascendCard: { borderColor: palette.prism, backgroundColor: '#1c1020', marginTop: spacing.lg },
-  convergeCard: { borderColor: palette.aeon, backgroundColor: '#0d1a24', marginTop: spacing.lg },
-  unifyCard: { borderColor: palette.singularity, backgroundColor: '#221c0d', marginTop: spacing.lg },
-  cardTitle: { color: palette.shard, fontSize: 12, fontWeight: '800', letterSpacing: 3 },
-  gain: { color: palette.ink, fontSize: 26, fontWeight: '800', marginTop: spacing.sm, ...mono },
-  gainLabel: { color: palette.shard, fontSize: 14 },
-  detail: { color: palette.dim, fontSize: 11, marginTop: 4, ...mono },
-  resets: { color: palette.dim, fontSize: 11, marginTop: spacing.md, textAlign: 'center' },
-  keeps: { color: palette.dim, fontSize: 11, marginTop: 2, textAlign: 'center' },
+  measureValue: { ...mono, color: palette.ink, fontSize: 12, fontWeight: '700', flexShrink: 1 },
+
+  /** Resets vs Keeps line up so the trade is readable at a glance. */
+  def: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  defLabel: { ...type.label, color: palette.faint, width: 62, paddingTop: 2 },
+  defValue: { ...type.micro, color: palette.dim, flex: 1 },
+
   button: {
     marginTop: spacing.lg,
-    backgroundColor: palette.shard,
-    borderRadius: 8,
+    backgroundColor: palette.panelHi,
+    borderRadius: radius.md,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
   },
-  buttonLocked: { backgroundColor: palette.panel },
   buttonConfirm: { backgroundColor: palette.danger },
-  buttonText: { color: palette.bgDeep, fontSize: 14, fontWeight: '800' },
-  buttonConfirmText: { color: palette.ink },
-  cancel: { color: palette.dim, fontSize: 12, marginTop: spacing.sm },
-  section: {
-    color: palette.dim,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
+  buttonText: { ...type.label, fontSize: 12, color: palette.bgDeep },
+  buttonTextLocked: { color: palette.faint },
+  buttonTextConfirm: { color: palette.ink },
+  cancelHit: { alignSelf: 'center', padding: spacing.sm },
+  cancel: { ...type.micro, color: palette.dim },
+
   teaser: {
-    borderColor: palette.line,
     borderWidth: 1,
-    borderRadius: 8,
     borderStyle: 'dashed',
+    borderRadius: radius.lg,
     padding: spacing.md,
     marginTop: spacing.lg,
+    opacity: 0.7,
   },
-  teaserTitle: { color: palette.prism, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  teaserText: { color: palette.dim, fontSize: 11, marginTop: 4, lineHeight: 16 },
+  teaserTitle: { ...type.label, fontSize: 11 },
+  teaserText: { ...type.micro, color: palette.dim, marginTop: 5 },
 });
