@@ -97,9 +97,20 @@ export default function App() {
     : !showElements
       ? { label: 'Ascend', hint: `${LAYERS.shard.glyph} ${format(BAL.ascend.unlockShards)}`, color: LAYERS.prism.color }
       : !showMine
-        ? { label: 'Converge', hint: `${LAYERS.prism.glyph} ${format(BAL.converge.unlockPrism)}`, color: LAYERS.aeon.color }
+        ? {
+            label: 'Converge',
+            // Both halves of the gate, because a player staring at enough
+            // Prism and no Converge button has no other way to learn that
+            // Trials are the other half of it (BAL.gates).
+            hint: `${LAYERS.prism.glyph} ${format(BAL.converge.unlockPrism)} + ${BAL.gates.convergeTrialTiers} trials`,
+            color: LAYERS.aeon.color,
+          }
         : game.unifies === 0
-          ? { label: 'Unify', hint: `${LAYERS.aeon.glyph} ${format(BAL.unify.unlockAeon)}`, color: LAYERS.singularity.color }
+          ? {
+              label: 'Unify',
+              hint: `${LAYERS.aeon.glyph} ${format(BAL.unify.unlockAeon)} + 3 more gates`,
+              color: LAYERS.singularity.color,
+            }
           : null;
 
   // A tab can disappear on hard reset — fall back to Core.

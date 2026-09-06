@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { MILESTONES } from '../../game/balance';
 import { format, formatTime, formatWhole } from '../../game/numbers';
 import {
   ACHIEVEMENTS,
@@ -16,6 +17,7 @@ import {
 import { sparkRate } from '../../game/systems/dimensions';
 import { oreRate } from '../../game/systems/minerals';
 import { moteRate } from '../../game/systems/motes';
+import { isComplete, milestoneAt } from '../../game/systems/milestones';
 import { multBreakdown } from '../../game/systems/multipliers';
 import { useGameStore } from '../../state/store';
 import { SectionHeader } from '../components/Panel';
@@ -64,6 +66,46 @@ export function StatsScreen() {
         );
       })}
 
+      {/*
+        THE ROUTE.
+
+        GYRE is meant to take about a month at an ordinary idle pace, and it is
+        also meant to be routed — Trials gate Converge and Unify, Ore gates
+        Unify, and Prism can buy Shard rate, so the ORDER you push the lanes in
+        moves the finishing time by a very large factor. A route is only worth
+        optimising if you can see what the last one cost, so every milestone is
+        stamped the first time it happens and no reset takes it back.
+
+        The clock is simulated time (offline included), not wall-clock: that is
+        the honest measure for an idle game.
+      */}
+      <SectionHeader
+        label="Route"
+        accent={palette.prism}
+        trailing={
+          <Text style={styles.statValue}>
+            {isComplete(game) ? 'COMPLETE' : formatTime(game.timePlayed)}
+          </Text>
+        }
+      />
+      <Text style={styles.blurb}>
+        Splits, in played time. They survive every reset — that is what makes two runs
+        comparable.
+      </Text>
+      {MILESTONES.map((m) => {
+        const at = milestoneAt(game, m.id);
+        return (
+          <View key={m.id} style={styles.statRow}>
+            <Text style={[styles.statLabel, at === null && { color: palette.faint }]}>
+              {m.name}
+            </Text>
+            <Text style={[styles.statValue, at === null && { color: palette.faint }]}>
+              {at === null ? '—' : formatTime(at)}
+            </Text>
+          </View>
+        );
+      })}
+
       <SectionHeader label="Rates" accent={palette.orbiter} />
       <Stat label="Spark / second" value={`${LAYERS.spark.glyph} ${format(sparkRate(game), { notation })}`} />
       <Stat label="Motes / second" value={`${LAYERS.mote.glyph} ${format(moteRate(game), { notation, small: true })}`} />
@@ -75,6 +117,7 @@ export function StatsScreen() {
       <Stat label="Total Spark earned" value={`${LAYERS.spark.glyph} ${format(game.totalSpark, { notation })}`} />
       <Stat label="Best Spark this run" value={`${LAYERS.spark.glyph} ${format(game.bestSparkRun, { notation })}`} />
       <Stat label="Motes ever" value={`${LAYERS.mote.glyph} ${format(game.motesEver, { notation })}`} />
+      <Stat label="Ore ever (this cycle)" value={`${LAYERS.ore.glyph} ${format(game.oreEver, { notation })}`} />
       <Stat label="Shards ever" value={`${LAYERS.shard.glyph} ${formatWhole(game.shardsEver, notation)}`} />
       <Stat label="Prism ever" value={`${LAYERS.prism.glyph} ${formatWhole(game.prismEver, notation)}`} />
       <Stat label="Aeon ever" value={`${LAYERS.aeon.glyph} ${formatWhole(game.aeonEver, notation)}`} />

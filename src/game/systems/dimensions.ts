@@ -11,6 +11,7 @@ import { D, Decimal, ONE, ZERO, clean } from '../numbers';
 import { BuyAmount, DimensionTier, GameState } from '../types';
 import { challengeActive, costGrowthFor } from './challengeperks';
 import { globalMult, sparkMult, speedMult, tierMult } from './multipliers';
+import { tapPower } from './upgrades';
 
 export const TIER_COUNT = BAL.dimensions.length;
 
@@ -104,6 +105,25 @@ export function tickDimensions(state: GameState, dt: number): void {
 
   state.dims = dims;
   if (state.spark.gt(state.bestSparkRun)) state.bestSparkRun = state.spark;
+}
+
+/**
+ * Spark actually granted by one tap: the flat tap power, or `tapProductionSeconds`
+ * of your current output — whichever is larger.
+ *
+ * Lives here rather than in upgrades.ts only because it needs `sparkRate`, and
+ * upgrades.ts is a leaf the multiplier stack depends on.
+ *
+ * The production term is what keeps tapping alive past minute three. Every
+ * Collapse, Ascend and Trial entry drops you to zero production, and without
+ * this the only thing a player can do in those first seconds is watch. It caps
+ * out around +50% at a human five taps a second — a real reward for playing
+ * actively, never a requirement.
+ */
+export function tapGain(state: GameState): Decimal {
+  const flat = tapPower(state);
+  const fromRate = sparkRate(state).mul(BAL.tapProductionSeconds);
+  return clean(Decimal.max(flat, fromRate));
 }
 
 /** Spark per second at the current state (display only — T1 output). */

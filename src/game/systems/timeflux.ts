@@ -20,6 +20,21 @@ export function fluxFromOverflow(state: GameState, overflowSeconds: number): Dec
   return clean(BAL.timeflux.fluxPerOverflowMinute.mul(Math.floor(overflowSeconds / 60)));
 }
 
+/**
+ * The slow ONLINE Flux trickle, once P3 is reached.
+ *
+ * Flux used to come only from offline overflow, which meant a player who never
+ * closes the app never earned any — a strange property for a system that owns
+ * a third of the Mine tab. The trickle is a fifth of the offline rate, so
+ * going away is still much the better way to bank it.
+ */
+export function tickOnlineFlux(state: GameState, dt: number): void {
+  if (!timeFluxUnlocked(state)) return;
+  const gained = BAL.timeflux.fluxPerOnlineMinute.mul(dt / 60);
+  if (gained.lte(ZERO)) return;
+  state.flux = clean(state.flux.add(gained));
+}
+
 /** Sim-speed factor for this tick (warp active or not). */
 export function warpFactor(state: GameState): number {
   return state.warpRemaining > 0 ? BAL.timeflux.warp.mult : 1;

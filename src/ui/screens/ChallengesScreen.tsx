@@ -3,12 +3,13 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
-import { format } from '../../game/numbers';
+import { format, formatTime } from '../../game/numbers';
 import {
   challengeGoal,
   canEnterChallenge,
   challengeTiers,
 } from '../../game/systems/challenges';
+import { trialTiersCleared } from '../../game/systems/prestige';
 import { useGameStore } from '../../state/store';
 import { Card, Meter } from '../components/Panel';
 import { LAYERS, mono, palette, radius, spacing, type } from '../theme';
@@ -19,6 +20,8 @@ export function ChallengesScreen() {
   const exit = useGameStore((s) => s.exitChallenge);
   const notation = game.options.notation;
   const busyElsewhere = game.activeChallenge !== null;
+  const cleared = trialTiersCleared(game);
+  const total = BAL.challenges.defs.reduce((sum, c) => sum + c.maxTier, 0);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -27,6 +30,22 @@ export function ChallengesScreen() {
         the reward is permanent. Entering or leaving resets the run; your Shards, Prism and trees
         are safe.
       </Text>
+      {/*
+        Trials are not a side cabinet: they GATE the deep layers (BAL.gates).
+        Saying so here, with the running count, is the difference between a
+        player routing deliberately and a player wondering for an hour why
+        Converge will not fire.
+      */}
+      <View style={styles.gateBox}>
+        <Text style={styles.gateTitle}>
+          {cleared} of {total} tiers cleared
+        </Text>
+        <Text style={styles.gateText}>
+          Converge needs {BAL.gates.convergeTrialTiers}. Unify needs {BAL.gates.unifyTrialTiers}.
+          Trials are the only way past those two doors, and every tier you clear makes the rest of
+          the game faster — so clearing them early is the whole speedrun.
+        </Text>
+      </View>
 
       {BAL.challenges.defs.map((def) => {
         const tiers = challengeTiers(game, def.id);
@@ -87,7 +106,8 @@ export function ChallengesScreen() {
             {active ? (
               <>
                 <Text style={styles.best}>
-                  Best this run: {LAYERS.spark.glyph} {format(game.bestSparkRun, { notation })}
+                  Best this run: {LAYERS.spark.glyph} {format(game.bestSparkRun, { notation })} ·{' '}
+                  {formatTime(game.challengeElapsed)} in
                 </Text>
                 <Pressable style={[styles.button, styles.buttonExit]} onPress={exit}>
                   <Text style={styles.buttonExitText}>Abandon run</Text>
@@ -116,6 +136,16 @@ export function ChallengesScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2, paddingTop: spacing.sm },
   blurb: { ...type.body, color: palette.dim, marginBottom: spacing.sm },
+  gateBox: {
+    borderColor: palette.prism,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: palette.panel,
+  },
+  gateTitle: { ...type.figure, fontSize: 15, color: palette.prism },
+  gateText: { ...type.micro, color: palette.dim, marginTop: 4 },
 
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   name: { ...type.label, fontSize: 13, letterSpacing: 2, color: palette.ink },

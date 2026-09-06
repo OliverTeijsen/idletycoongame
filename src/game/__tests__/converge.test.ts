@@ -17,15 +17,16 @@ function readyState() {
   const s = defaultState(0);
   s.prism = D(200);
   s.bestPrism = D(200);
-  s.prismEver = D(255);
+  s.prismEver = READY_PRISM;
   s.ascends = 3;
   s.prismGrid = { amplify: 2 };
   s.elements = { points: 1, alloc: { ignis: 4, lux: 2 }, progress: 100 };
-  s.challenges = { famine: 2 };
+  // Converge's sideways gate: cleared Trial tiers (BAL.gates).
+  s.challenges = { famine: 8 };
   s.shards = D(500);
   s.shardsEver = D(900);
   s.shardUpgrades = { emberBank: 3 };
-  s.starChart = { ignite: true };
+  s.starChart = { ignite: 1 };
   s.ore = D(1234);
   s.miners = { drill: 5 };
   s.research = { oreSluice: true };
@@ -34,6 +35,9 @@ function readyState() {
   s.collapses = 20;
   return s;
 }
+
+/** Well above the Converge bar, so the gain is a real number to assert on. */
+const READY_PRISM = BAL.converge.unlockPrism.mul(4);
 
 describe('converge gating & gain', () => {
   it('locked below the prism threshold', () => {
@@ -44,21 +48,45 @@ describe('converge gating & gain', () => {
     expect(doConverge(s)).toBe(false);
   });
 
+  /**
+   * A POWER law, not a log. The point is that six times the Prism must be
+   * worth well over six-fifths the Aeon, or a Converge stops ever being worth
+   * taking and the whole ladder above it seizes — see BAL.converge for the
+   * fourteen-hour walk where exactly that happened.
+   */
   it('gain is floor((prismEver/coef)^exp) — sublinear, but not a log', () => {
     const s = defaultState(0);
-    s.prismEver = D(200); // sqrt(200/2) = 10
-    expect(convergeGain(s).toNumber()).toBe(10);
-    s.prismEver = D(1250); // sqrt(625) = 25
-    expect(convergeGain(s).toNumber()).toBe(25);
-    // The point of the power law: 6× the Prism must be worth well over 6/5
-    // the Aeon, or a Converge stops ever being worth taking (see BAL.converge).
-    expect(convergeGain(s).gt(D(2).mul(10))).toBe(true);
+    const expected = (prism: number) =>
+      Math.floor(Math.pow(prism / BAL.converge.coef.toNumber(), BAL.converge.exp));
+
+    s.prismEver = D(200);
+    expect(convergeGain(s).toNumber()).toBe(expected(200));
+    const small = convergeGain(s).toNumber();
+    s.prismEver = D(1200);
+    expect(convergeGain(s).toNumber()).toBe(expected(1200));
+    expect(convergeGain(s).toNumber()).toBeGreaterThan(small * 2);
+  });
+
+  /**
+   * The Trial gate. Prism alone is not enough to go deeper any more: this is
+   * the sideways interlock that makes the Trials tab part of the ladder rather
+   * than a side cabinet (BAL.gates).
+   */
+  it('also needs cleared Trial tiers', () => {
+    const s = defaultState(0);
+    s.prismEver = READY_PRISM;
+    s.prism = s.prismEver;
+    expect(convergeGain(s).gte(1)).toBe(true);
+    expect(canConverge(s)).toBe(false);
+    s.challenges = { solitary: BAL.gates.convergeTrialTiers };
+    expect(canConverge(s)).toBe(true);
   });
 
   it('spending Prism on the grid never delays Converge', () => {
     const s = defaultState(0);
-    s.prismEver = BAL.converge.unlockPrism;
+    s.prismEver = READY_PRISM;
     s.prism = ZERO; // everything already spent
+    s.challenges = { solitary: BAL.gates.convergeTrialTiers };
     expect(convergeUnlocked(s)).toBe(true);
     expect(canConverge(s)).toBe(true);
   });
@@ -70,9 +98,11 @@ describe('converge reset semantics', () => {
     expect(canConverge(s)).toBe(true);
     expect(doConverge(s)).toBe(true);
 
-    // gained: floor(sqrt(255 / 2)) = 11
-    expect(s.aeon.toNumber()).toBe(11);
-    expect(s.aeonEver.toNumber()).toBe(11);
+    const gain = Math.floor(
+      Math.pow(READY_PRISM.toNumber() / BAL.converge.coef.toNumber(), BAL.converge.exp),
+    );
+    expect(s.aeon.toNumber()).toBe(gain);
+    expect(s.aeonEver.toNumber()).toBe(gain);
     expect(s.converges).toBe(1);
 
     // P2 layer gone
@@ -90,13 +120,14 @@ describe('converge reset semantics', () => {
     expect(s.starChart).toEqual({});
     expect(s.spark.eq(BAL.dimBoost.startingSpark)).toBe(true);
 
-    // minerals reset, research SURVIVES
-    expect(s.ore.eq(ZERO)).toBe(true);
-    expect(s.miners).toEqual({});
+    // MINERALS SURVIVE a Converge now — they are the slow lane, and wiping
+    // them roughly hourly is what made mining pointless (see systems/minerals).
+    expect(s.ore.eq(D(1234))).toBe(true);
+    expect(s.miners).toEqual({ drill: 5 });
     expect(s.research).toEqual({ oreSluice: true });
 
     // kept
-    expect(s.challenges).toEqual({ famine: 2 });
+    expect(s.challenges).toEqual({ famine: 8 });
     expect(s.ascends).toBe(3);
     expect(s.collapses).toBe(20);
   });
@@ -135,10 +166,10 @@ describe('aeon effects', () => {
     s.shardsEver = BAL.ascend.unlockShards.mul(2);
     s.shards = s.shardsEver;
     s.motes = D(1000);
-    s.starChart = { ignite: true, kindling: true };
+    s.starChart = { ignite: 1, kindling: 1 };
     s.aeonTree = { keepMotes: true, keepChart: true };
     expect(doAscend(s)).toBe(true);
     expect(s.motes.eq(D(500))).toBe(true);
-    expect(s.starChart).toEqual({ ignite: true, kindling: true });
+    expect(s.starChart).toEqual({ ignite: 1, kindling: 1 });
   });
 });

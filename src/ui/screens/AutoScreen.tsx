@@ -30,6 +30,7 @@ const LABELS: Record<AutomationId, { title: string; desc: string }> = {
   autoCollapse: { title: 'Auto: Collapse', desc: 'Standing Wave aeon node · collapses when worthwhile' },
   autoAscend: { title: 'Auto: Ascend', desc: 'Recurrence I meta upgrade · ascends when worthwhile' },
   autoConverge: { title: 'Auto: Converge', desc: 'Recurrence II meta upgrade · converges when worthwhile' },
+  autoUnify: { title: 'Auto: Unify', desc: 'Recurrence III meta upgrade · unifies when worthwhile' },
 };
 
 export function AutoScreen() {

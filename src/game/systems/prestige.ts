@@ -7,12 +7,17 @@
  * never stored, per the §19 prototype-bug note) and buy the Star Chart and
  * the Shard upgrade tree.
  */
-import { BAL, ShardUpgradeDef } from '../balance';
+import { BAL, PrismUpgradeDef, ShardUpgradeDef } from '../balance';
 import { D, Decimal, ZERO, clean } from '../numbers';
 import { GameState } from '../types';
 import { freshDims } from './dimensions';
 import { emberStartSpark, keptDimBoosts, moteKeepFraction, shardUpgradeLevel } from './shardperks';
 import { upgradeCost } from './upgrades';
+
+/** Total Trial tiers cleared — the sideways gate the deep layers read. */
+export function trialTiersCleared(state: GameState): number {
+  return Object.values(state.challenges).reduce((a, b) => a + b, 0);
+}
 
 /** The Prestige tab reveals once the player has ever qualified or collapsed. */
 export function collapseUnlocked(state: GameState): boolean {
@@ -24,14 +29,29 @@ export function collapseUnlocked(state: GameState): boolean {
 }
 
 /**
- * Shards granted by collapsing right now: floor(perDecade · log10(best/coef)).
- * Logarithmic on purpose — see BAL.collapse.
+ * Shards per decade of Spark, after the Resolve prism upgrade.
+ *
+ * Resolve is P2 buying P1's RATE rather than more production, so the layer
+ * below never goes obsolete — the sideways interlock of balance.ts rule 3, and
+ * one of the two accelerators that keep the deep cadence from going flat (see
+ * BAL.gainAccelerators).
+ */
+export function shardsPerDecade(state: GameState): number {
+  const def = BAL.prismGrid.find((u) => u.id === 'resolve')!;
+  const level = state.prismGrid['resolve'] ?? 0;
+  return BAL.collapse.perDecade * Math.pow(def.effectPerLevel.toNumber(), level);
+}
+
+/**
+ * Shards granted by collapsing right now:
+ * floor(shardsPerDecade · log10(best/coef)). Logarithmic on purpose — see
+ * BAL.collapse.
  */
 export function collapseGain(state: GameState): Decimal {
   if (state.bestSparkRun.lt(BAL.collapse.unlockSpark)) return ZERO;
   const decades = state.bestSparkRun.div(BAL.collapse.coef).log10();
   if (!Number.isFinite(decades) || decades <= 0) return ZERO;
-  return clean(D(Math.floor(decades * BAL.collapse.perDecade)));
+  return clean(D(Math.floor(decades * shardsPerDecade(state))));
 }
 
 export function canCollapse(state: GameState): boolean {
@@ -62,6 +82,7 @@ export function resetLayer0(state: GameState): void {
 
   state.motes = clean(state.motes.mul(moteKeepFraction(state)));
   state.moteUpgrades = {};
+  state.runSeconds = 0;
 }
 
 export function doCollapse(state: GameState): boolean {
@@ -71,6 +92,7 @@ export function doCollapse(state: GameState): boolean {
   state.shards = clean(state.shards.add(gain));
   state.shardsEver = clean(state.shardsEver.add(gain));
   if (state.shards.gt(state.bestShards)) state.bestShards = state.shards;
+  if (gain.gt(state.bestCollapseGain)) state.bestCollapseGain = gain;
   state.collapses += 1;
 
   resetLayer0(state);
@@ -106,7 +128,9 @@ export function ascendUnlocked(state: GameState): boolean {
  */
 export function ascendGain(state: GameState): Decimal {
   if (state.shardsEver.lt(BAL.ascend.unlockShards)) return ZERO;
-  const base = state.shardsEver.div(BAL.ascend.coef).pow(BAL.ascend.exp).floor();
+  const reachDef = BAL.aeonUpgrades.find((u) => u.id === 'aeonReach')!;
+  const reach = reachDef.effectPerLevel.pow(state.aeonGrid['aeonReach'] ?? 0);
+  const base = state.shardsEver.div(BAL.ascend.coef).pow(BAL.ascend.exp).mul(reach).floor();
   return clean(base.add(state.challenges['dim'] ?? 0));
 }
 
@@ -144,6 +168,7 @@ export function doAscend(state: GameState): boolean {
   state.shards = ZERO;
   state.bestShards = ZERO;
   state.shardsEver = ZERO;
+  state.bestCollapseGain = ZERO;
   state.shardUpgrades = {};
   state.starChart = keptChart;
   state.activeChallenge = null;
@@ -173,8 +198,20 @@ export function convergeGain(state: GameState): Decimal {
   return clean(state.prismEver.div(BAL.converge.coef).pow(BAL.converge.exp).floor());
 }
 
+/**
+ * Converge needs Prism AND cleared Trials (BAL.gates).
+ *
+ * This is the gate that makes Trials part of the game rather than a side
+ * cabinet: the main loop is what makes a Trial winnable, and Trial rewards are
+ * what let the main loop go deeper. Five tiers of forty is a gentle ask — it
+ * decides the ORDER you do things in, never whether you can.
+ */
+export function convergeTrialsMet(state: GameState): boolean {
+  return trialTiersCleared(state) >= BAL.gates.convergeTrialTiers;
+}
+
 export function canConverge(state: GameState): boolean {
-  return convergeGain(state).gte(1);
+  return convergeGain(state).gte(1) && convergeTrialsMet(state);
 }
 
 /**
@@ -198,18 +235,25 @@ export function doConverge(state: GameState): boolean {
   state.prismEver = ZERO;
   state.prismGrid = {};
 
-  // Elements allocation refunds to the pool; the points survive.
-  const refund = Object.values(state.elements.alloc).reduce((a, b) => a + b, 0);
-  state.elements = { ...state.elements, points: state.elements.points + refund, alloc: {} };
+  // Elements allocation refunds to the pool; the points survive. Held
+  // Spectrum (Aeon tree) keeps the allocation itself.
+  if (!state.aeonTree['keepElements']) {
+    const refund = Object.values(state.elements.alloc).reduce((a, b) => a + b, 0);
+    state.elements = { ...state.elements, points: state.elements.points + refund, alloc: {} };
+  }
 
-  // Minerals reset here (and only here / Unify) — research survives.
-  state.ore = ZERO;
-  state.miners = {};
+  /*
+   * Ore and Miners are NOT touched here — they survive Converge and reset only
+   * at Unify. Wiping them at every Converge is most of why mining was
+   * pointless: the lane the spec calls "the permanent, slow, compounding
+   * backbone" was being cleared roughly once an hour, so it never compounded.
+   */
 
   // P1 layer + Layer 0, with NO keep perks (they were all cleared).
   state.shards = ZERO;
   state.bestShards = ZERO;
   state.shardsEver = ZERO;
+  state.bestCollapseGain = ZERO;
   state.shardUpgrades = {};
   state.starChart = {};
   state.activeChallenge = null;
@@ -233,9 +277,49 @@ export function unifyGain(state: GameState): Decimal {
   return clean(state.aeonEver.div(BAL.unify.coef).pow(BAL.unify.exp).floor());
 }
 
-/** Unify needs the Aeon threshold AND the Singularity Seed research (§7 gate). */
+/**
+ * Unify's gates, as a list the UI can render one by one.
+ *
+ * Four conditions from four different systems: the prestige ladder (Aeon), the
+ * mining lane (the Seed and Deep Refinement) and the Trials. You cannot ride a
+ * single lane to the end of GYRE — that is the shape of the whole endgame, and
+ * it is what gives a route something to optimise.
+ */
+export interface UnifyGate {
+  id: string;
+  label: string;
+  met: boolean;
+}
+
+export function unifyGates(state: GameState): UnifyGate[] {
+  const tiers = trialTiersCleared(state);
+  const refine = state.researchGrid['deepRefine'] ?? 0;
+  return [
+    {
+      id: 'aeon',
+      label: `Earn ${BAL.unify.unlockAeon.toString()} Aeon this cycle`,
+      met: unifyGain(state).gte(1),
+    },
+    {
+      id: 'seed',
+      label: 'Buy the Singularity Seed research',
+      met: state.research['singularitySeed'] === true,
+    },
+    {
+      id: 'trials',
+      label: `Clear ${BAL.gates.unifyTrialTiers} Trial tiers (${tiers})`,
+      met: tiers >= BAL.gates.unifyTrialTiers,
+    },
+    {
+      id: 'refine',
+      label: `Deep Refinement level ${BAL.gates.unifyRefineLevels} (${refine})`,
+      met: refine >= BAL.gates.unifyRefineLevels,
+    },
+  ];
+}
+
 export function canUnify(state: GameState): boolean {
-  return unifyGain(state).gte(1) && state.research['singularitySeed'] === true;
+  return unifyGates(state).every((g) => g.met);
 }
 
 /**
@@ -257,11 +341,18 @@ export function doUnify(state: GameState): boolean {
   state.bestAeon = ZERO;
   state.aeonEver = ZERO;
   state.aeonTree = {};
+  state.aeonGrid = {};
 
   // Minerals, Research (unless archived) and Flux gone.
-  state.ore = ZERO;
-  state.miners = {};
-  if (!state.metaShop['keepResearch']) state.research = {};
+  if (!state.metaShop['keepMiners']) {
+    state.ore = ZERO;
+    state.oreEver = ZERO;
+    state.miners = {};
+  }
+  if (!state.metaShop['keepResearch']) {
+    state.research = {};
+    state.researchGrid = {};
+  }
   state.flux = ZERO;
   state.warpRemaining = 0;
   state.boostRemaining = 0;
@@ -278,23 +369,26 @@ export function doUnify(state: GameState): boolean {
   state.shards = ZERO;
   state.bestShards = ZERO;
   state.shardsEver = ZERO;
+  state.bestCollapseGain = ZERO;
   state.shardUpgrades = {};
-  state.starChart = {};
+  state.starChart = state.metaShop['keepChart2'] ? { ...state.starChart } : {};
   state.activeChallenge = null;
+  state.challengeElapsed = 0;
 
   resetLayer0(state);
 
   // Deep Memory: the new cycle begins with a little Aeon warmth.
   if (state.metaShop['starterAeon']) {
-    state.aeon = D(2);
-    state.aeonEver = D(2);
-    state.bestAeon = D(2);
+    state.aeon = D(5);
+    state.aeonEver = D(5);
+    state.bestAeon = D(5);
   }
 
   // Manager slots may have shrunk with Research — trim the assignments.
   let slots = BAL.managers.baseSlots;
   if (state.research['slotA']) slots += 1;
   if (state.research['slotB']) slots += 1;
+  if (state.research['slotC']) slots += 1;
   state.boostSlots = state.boostSlots.slice(0, slots);
 
   return true;
@@ -315,10 +409,26 @@ export function doUnify(state: GameState): boolean {
  * Each rule reads the LIFETIME counter, matching the multipliers: spending
  * Shards or Aeon must never make the next reset look less attractive.
  */
+/**
+ * Collapse when this run beats the best run of this cycle — or when you have
+ * simply been at it long enough.
+ *
+ * NOT "a fraction of shardsEver", and NOT "better than average" either. See
+ * the long note on BAL.prestigeStep: the fraction rule stalls (a log gain
+ * against an unbounded sum) and the average rule collapses into a two-second
+ * loop (every quick reset lowers its own bar). A running MAXIMUM can do
+ * neither — it only goes up, and it goes up exactly as fast as the runs do.
+ *
+ * The patience clause is what makes a monotone bar safe: a bar that only rises
+ * can become unreachable, and a stalled P1 starves every layer above it.
+ */
 export function worthCollapsing(state: GameState): boolean {
   if (!canCollapse(state)) return false;
   if (state.collapses === 0) return true;
-  return collapseGain(state).gte(state.shardsEver.mul(BAL.prestigeStep.collapse));
+  if (state.runSeconds >= BAL.prestigeStep.collapsePatienceSeconds) return true;
+  return collapseGain(state).gte(
+    state.bestCollapseGain.mul(BAL.prestigeStep.collapseBeatsBest),
+  );
 }
 
 export function worthAscending(state: GameState): boolean {
@@ -331,6 +441,12 @@ export function worthConverging(state: GameState): boolean {
   if (!canConverge(state)) return false;
   if (state.converges === 0) return true;
   return convergeGain(state).gte(state.aeonEver.mul(BAL.prestigeStep.converge));
+}
+
+export function worthUnifying(state: GameState): boolean {
+  if (!canUnify(state)) return false;
+  if (state.unifies === 0) return true;
+  return unifyGain(state).gte(state.singularityEver.mul(BAL.prestigeStep.unify));
 }
 
 // ---------------------------------------------------------------------------
@@ -425,3 +541,75 @@ export function buyShardUpgrade(state: GameState, id: string): boolean {
   state.shardUpgrades = { ...state.shardUpgrades, [id]: level + 1 };
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// The endless grids — Aeon's and Singularity's own uncapped lanes
+// ---------------------------------------------------------------------------
+
+/**
+ * Rule 2 of the rebalance: every currency owns at least one uncapped,
+ * geometrically-priced multiplier. Without these, Aeon past its six-node tree
+ * and Singularity past its eight-item shop are numbers that go up for no
+ * reason — and those are the two currencies a player spends the last three
+ * weeks of the game earning.
+ *
+ * One factory rather than two copies of the same twelve lines: the grids
+ * differ only in which record they live in and which balance they spend.
+ */
+function gridBuyer(
+  defs: readonly PrismUpgradeDef[],
+  read: (s: GameState) => Record<string, number>,
+  write: (s: GameState, next: Record<string, number>) => void,
+  balance: (s: GameState) => Decimal,
+  pay: (s: GameState, cost: Decimal) => void,
+) {
+  const byId = new Map(defs.map((d) => [d.id, d]));
+  return {
+    level: (state: GameState, id: string): number => read(state)[id] ?? 0,
+    cost: (state: GameState, id: string): Decimal =>
+      upgradeCost(byId.get(id)!, read(state)[id] ?? 0),
+    buy: (state: GameState, id: string): boolean => {
+      const def = byId.get(id);
+      if (!def) return false;
+      const level = read(state)[id] ?? 0;
+      if (def.maxLevel !== null && level >= def.maxLevel) return false;
+      const cost = upgradeCost(def, level);
+      if (balance(state).lt(cost)) return false;
+      pay(state, cost);
+      write(state, { ...read(state), [id]: level + 1 });
+      return true;
+    },
+  };
+}
+
+const aeonGridOps = gridBuyer(
+  BAL.aeonUpgrades,
+  (s) => s.aeonGrid,
+  (s, next) => {
+    s.aeonGrid = next;
+  },
+  (s) => s.aeon,
+  (s, cost) => {
+    s.aeon = s.aeon.sub(cost);
+  },
+);
+
+export const aeonGridLevel = aeonGridOps.level;
+export const aeonGridCost = aeonGridOps.cost;
+export const buyAeonGrid = aeonGridOps.buy;
+
+const metaGridOps = gridBuyer(
+  BAL.metaGrid,
+  (s) => s.metaGrid,
+  (s, next) => {
+    s.metaGrid = next;
+  },
+  (s) => s.singularity,
+  (s, cost) => {
+    s.singularity = s.singularity.sub(cost);
+  },
+);
+
+export const metaGridLevel = metaGridOps.level;
+export const metaGridCost = metaGridOps.cost;
+export const buyMetaGrid = metaGridOps.buy;

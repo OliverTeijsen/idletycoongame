@@ -40,6 +40,7 @@ export function enterChallenge(state: GameState, id: string): boolean {
   if (!canEnterChallenge(state, id)) return false;
   resetLayer0(state);
   state.activeChallenge = id;
+  state.challengeElapsed = 0;
   return true;
 }
 
@@ -47,8 +48,15 @@ export function enterChallenge(state: GameState, id: string): boolean {
 export function exitChallenge(state: GameState): boolean {
   if (state.activeChallenge === null) return false;
   state.activeChallenge = null;
+  state.challengeElapsed = 0;
   resetLayer0(state);
   return true;
+}
+
+/** Advance the in-Trial clock (shown in the UI, read by the balance harness). */
+export function tickChallenge(state: GameState, dt: number): void {
+  if (state.activeChallenge === null) return;
+  state.challengeElapsed += dt;
 }
 
 /**
@@ -61,10 +69,23 @@ export function checkChallengeCompletion(state: GameState): string | null {
   if (state.bestSparkRun.lt(challengeGoal(state, id))) return null;
   state.challenges = { ...state.challenges, [id]: challengeTiers(state, id) + 1 };
   state.activeChallenge = null;
+  state.challengeElapsed = 0;
   state.elements = {
     ...state.elements,
     points: state.elements.points + BAL.elements.pointsPerChallenge,
   };
   resetLayer0(state);
+
+  /*
+   * Recurring Trial (Aeon tree): step straight into the next tier.
+   *
+   * Trial tiers gate Converge and Unify, and by the endgame a player is
+   * clearing dozens of them — without this, "the deepest content in the game"
+   * is a tab you have to remember to press a button on every twenty minutes.
+   * It re-enters the SAME trial only, so a deliberate route still beats it.
+   */
+  if (state.aeonTree['autoTrial'] && canEnterChallenge(state, id)) {
+    enterChallenge(state, id);
+  }
   return id;
 }

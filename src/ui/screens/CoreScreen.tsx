@@ -72,13 +72,16 @@ export function CoreScreen() {
             color={tier === 1 ? palette.orbiter : palette.orbiterCyan}
             title={`Tier ${tier} Orbiter`}
             subtext={
-              tier === 1
-                ? `Makes Spark · ${formatWhole(d.amount, notation)} spinning, ${d.bought} bought`
-                : `Makes Tier ${tier - 1} · ${formatWhole(d.amount, notation)} spinning, ${d.bought} bought`
+              // The MAX count lives HERE, not appended to the cost: the cost
+              // column is a fixed width (see Row.tsx) and "×47" changing to
+              // "×3" every autobuy pass is exactly the kind of live suffix
+              // that used to reflow the row.
+              `${tier === 1 ? 'Makes Spark' : `Makes Tier ${tier - 1}`} · ${formatWhole(
+                d.amount,
+                notation,
+              )} spinning${buyAmount === 'MAX' && n > 0 ? ` · buys ${n}` : ''}`
             }
-            costText={`${LAYERS.spark.glyph} ${format(cost, { notation })}${
-              buyAmount === 'MAX' && n > 0 ? ` ×${n}` : ''
-            }`}
+            costText={`${LAYERS.spark.glyph} ${format(cost, { notation })}`}
             affordable={affordable}
             onBuy={() => buyDimension(tier)}
           />

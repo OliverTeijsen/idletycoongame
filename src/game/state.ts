@@ -6,7 +6,7 @@ import { ZERO } from './numbers';
 import { freshDims } from './systems/dimensions';
 import { GameState } from './types';
 
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 export function defaultState(now: number = Date.now()): GameState {
   return {
@@ -18,6 +18,7 @@ export function defaultState(now: number = Date.now()): GameState {
     spark: ZERO,
     bestSparkRun: ZERO,
     totalSpark: ZERO,
+    runSeconds: 0,
     dims: freshDims(),
     sparkUpgrades: {},
     dimBoosts: 0,
@@ -32,6 +33,7 @@ export function defaultState(now: number = Date.now()): GameState {
     shardsEver: ZERO,
     collapses: 0,
     shardUpgrades: {},
+    bestCollapseGain: ZERO,
 
     prism: ZERO,
     bestPrism: ZERO,
@@ -43,16 +45,20 @@ export function defaultState(now: number = Date.now()): GameState {
 
     challenges: {},
     activeChallenge: null,
+    challengeElapsed: 0,
 
     aeon: ZERO,
     bestAeon: ZERO,
     aeonEver: ZERO,
     converges: 0,
     aeonTree: {},
+    aeonGrid: {},
 
     ore: ZERO,
+    oreEver: ZERO,
     miners: {},
     research: {},
+    researchGrid: {},
 
     flux: ZERO,
     warpRemaining: 0,
@@ -65,6 +71,7 @@ export function defaultState(now: number = Date.now()): GameState {
     singularityEver: ZERO,
     unifies: 0,
     metaShop: {},
+    metaGrid: {},
 
     achievements: {},
     pendingAchievements: [],
@@ -73,6 +80,8 @@ export function defaultState(now: number = Date.now()): GameState {
 
     automation: {},
     autobuyTimer: 0,
+
+    milestones: {},
 
     options: {
       notation: 'standard',

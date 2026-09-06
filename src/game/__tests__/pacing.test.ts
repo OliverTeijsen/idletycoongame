@@ -136,11 +136,11 @@ describe('pacing', () => {
   }, PACING_TIMEOUT_MS);
 
   // NOTE: the Collapse/Ascend loop-acceleration tests that lived here were
-  // retired in the Phase 10 balance pass. ladder.test.ts now walks the whole
-  // prestige ladder from a fresh save and asserts the §10 windows directly,
-  // including the "each layer makes the one below 3–10× faster to re-clear"
-  // rule — so keeping a second, coarser copy here only meant two sets of
-  // thresholds to keep in sync.
+  // retired in the Phase 10 balance pass. ladder.test.ts walks the whole
+  // prestige ladder from a fresh save and asserts the §10 windows directly
+  // (and owns the "a prestige makes the layer below faster to re-clear" test),
+  // longwalk.test.ts carries it across days — so keeping a second, coarser
+  // copy here only meant two sets of thresholds to keep in sync.
 
   it('absurd wealth (1e300+) keeps ticking finitely', () => {
     const s = defaultState(0);

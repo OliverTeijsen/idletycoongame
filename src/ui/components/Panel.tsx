@@ -85,7 +85,13 @@ export function Meter({ value, max, color }: { value: number; max: number; color
   );
 }
 
-/** A small keyed value: glyph + number, in the layer's hue. */
+/**
+ * A small keyed value: glyph + number, in the layer's hue.
+ *
+ * FIXED width, one line. A chip holds a live number, and an auto-sizing chip
+ * resizes its neighbours every time that number gains a digit — see the note
+ * in ResourceBar.tsx for what that did to the whole app.
+ */
 export function Chip({
   glyph,
   value,
@@ -133,7 +139,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   meterFill: { height: 3, borderRadius: 2 },
-  chip: { alignItems: 'center', minWidth: 58 },
+  chip: { alignItems: 'center', width: 76 },
   chipValue: { ...type.figure, fontSize: 14 },
   chipCaption: { ...type.micro, color: palette.faint, marginTop: 1 },
 });

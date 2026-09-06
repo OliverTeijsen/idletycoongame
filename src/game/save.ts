@@ -9,7 +9,7 @@
  *    the migration for purely-additive changes. Structural changes get an
  *    entry in `migrations`.
  */
-import { BAL } from './balance';
+import { BAL, MILESTONES } from './balance';
 import { clean, decFromString, decToString } from './numbers';
 import { CURRENT_VERSION, defaultState } from './state';
 import { ACHIEVEMENT_IDS } from './systems/achievements';
@@ -34,6 +34,7 @@ interface SavedGame {
   spark: string;
   bestSparkRun: string;
   totalSpark: string;
+  runSeconds: number;
   dims: SavedDim[];
   sparkUpgrades: Record<string, number>;
   dimBoosts: number;
@@ -46,7 +47,8 @@ interface SavedGame {
   shardsEver: string;
   collapses: number;
   shardUpgrades: Record<string, number>;
-  starChart: Record<string, boolean>;
+  bestCollapseGain: string;
+  starChart: Record<string, number>;
   automation: Record<string, boolean>;
   prism: string;
   bestPrism: string;
@@ -56,14 +58,18 @@ interface SavedGame {
   elements: { points: number; alloc: Record<string, number>; progress: number };
   challenges: Record<string, number>;
   activeChallenge: string | null;
+  challengeElapsed: number;
   aeon: string;
   bestAeon: string;
   aeonEver: string;
   converges: number;
   aeonTree: Record<string, boolean>;
+  aeonGrid: Record<string, number>;
   ore: string;
+  oreEver: string;
   miners: Record<string, number>;
   research: Record<string, boolean>;
+  researchGrid: Record<string, number>;
   flux: string;
   warpRemaining: number;
   boostRemaining: number;
@@ -73,7 +79,9 @@ interface SavedGame {
   singularityEver: string;
   unifies: number;
   metaShop: Record<string, boolean>;
+  metaGrid: Record<string, number>;
   achievements: Record<string, boolean>;
+  milestones: Record<string, number>;
   options: GameOptions;
 }
 
@@ -90,6 +98,25 @@ const migrations: Record<number, (old: Record<string, unknown>) => Record<string
   4: (old) => old,
   5: (old) => old,
   6: (old) => old,
+  /**
+   * v7 → v8: the Star Chart became RANKED (BAL.starChart), so a node that was
+   * stored as `true` is now rank 1. Everything else this version added is
+   * purely additive and default-fills below.
+   *
+   * This is the first non-additive migration in the game, and it is the reason
+   * the `migrations` table exists at all: without it every v7 save would come
+   * back with an empty chart, because `ranksOf` would reject the booleans.
+   */
+  7: (old) => {
+    const chart = old.starChart;
+    if (typeof chart !== 'object' || chart === null || Array.isArray(chart)) return old;
+    const ranked: Record<string, number> = {};
+    for (const [id, v] of Object.entries(chart as Record<string, unknown>)) {
+      if (v === true) ranked[id] = 1;
+      else if (typeof v === 'number' && v > 0) ranked[id] = Math.floor(v);
+    }
+    return { ...old, starChart: ranked };
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +149,34 @@ function levelsOf(
   return out;
 }
 
+/**
+ * Star Chart ranks: known ids only, floored at 0 and clamped to each maxRank.
+ * Same shape as `levelsOf`, but the chart's cap field is `maxRank`.
+ */
+function ranksOf(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return out;
+  const raw = value as Record<string, unknown>;
+  for (const def of BAL.starChart) {
+    const rank = int(raw[def.id], 0, 0);
+    if (rank <= 0) continue;
+    out[def.id] = def.maxRank === null ? rank : Math.min(rank, def.maxRank);
+  }
+  return out;
+}
+
+/** Speedrun splits: known milestone ids mapped to a non-negative time. */
+function milestonesOf(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return out;
+  const raw = value as Record<string, unknown>;
+  for (const m of MILESTONES) {
+    const t = raw[m.id];
+    if (typeof t === 'number' && Number.isFinite(t) && t >= 0) out[m.id] = t;
+  }
+  return out;
+}
+
 /** Keep only known ids mapped to true. */
 function activeSetOf(value: unknown, knownIds: Set<string>): Record<string, boolean> {
   const out: Record<string, boolean> = {};
@@ -142,13 +197,12 @@ function togglesOf(value: unknown, knownIds: Set<string>): Record<string, boolea
   return out;
 }
 
-const KNOWN_STAR_NODES = new Set(BAL.starChart.map((n) => n.id));
+const KNOWN_MINER_DEFS = BAL.miners.map((m) => ({ id: m.id, maxLevel: null as number | null }));
 const KNOWN_AUTOMATION = new Set(AUTOMATION_IDS as readonly string[]);
 const KNOWN_CHALLENGES = new Set(BAL.challenges.defs.map((c) => c.id));
 const KNOWN_ELEMENTS = new Set(BAL.elements.defs.map((e) => e.id));
 const KNOWN_AEON_NODES = new Set(BAL.aeonTree.map((n) => n.id));
 const KNOWN_RESEARCH = new Set(BAL.research.map((r) => r.id));
-const KNOWN_MINERS = BAL.miners.map((m) => ({ id: m.id, maxLevel: null as number | null }));
 const KNOWN_MANAGERS = new Set(BAL.managers.defs.map((m) => m.id));
 const KNOWN_META = new Set(BAL.metaShop.map((m) => m.id));
 const KNOWN_ACHIEVEMENTS = new Set(ACHIEVEMENT_IDS);
@@ -212,6 +266,7 @@ export function serializeState(state: GameState): string {
     spark: decToString(state.spark),
     bestSparkRun: decToString(state.bestSparkRun),
     totalSpark: decToString(state.totalSpark),
+    runSeconds: state.runSeconds,
     dims: state.dims.map((d) => ({ bought: d.bought, amount: decToString(d.amount) })),
     sparkUpgrades: { ...state.sparkUpgrades },
     dimBoosts: state.dimBoosts,
@@ -224,6 +279,7 @@ export function serializeState(state: GameState): string {
     shardsEver: decToString(state.shardsEver),
     collapses: state.collapses,
     shardUpgrades: { ...state.shardUpgrades },
+    bestCollapseGain: decToString(state.bestCollapseGain),
     starChart: { ...state.starChart },
     automation: { ...state.automation },
     prism: decToString(state.prism),
@@ -234,14 +290,18 @@ export function serializeState(state: GameState): string {
     elements: { ...state.elements, alloc: { ...state.elements.alloc } },
     challenges: { ...state.challenges },
     activeChallenge: state.activeChallenge,
+    challengeElapsed: state.challengeElapsed,
     aeon: decToString(state.aeon),
     bestAeon: decToString(state.bestAeon),
     aeonEver: decToString(state.aeonEver),
     converges: state.converges,
     aeonTree: { ...state.aeonTree },
+    aeonGrid: { ...state.aeonGrid },
     ore: decToString(state.ore),
+    oreEver: decToString(state.oreEver),
     miners: { ...state.miners },
     research: { ...state.research },
+    researchGrid: { ...state.researchGrid },
     flux: decToString(state.flux),
     warpRemaining: state.warpRemaining,
     boostRemaining: state.boostRemaining,
@@ -251,7 +311,9 @@ export function serializeState(state: GameState): string {
     singularityEver: decToString(state.singularityEver),
     unifies: state.unifies,
     metaShop: { ...state.metaShop },
+    metaGrid: { ...state.metaGrid },
     achievements: { ...state.achievements },
+    milestones: { ...state.milestones },
     options: { ...state.options },
   };
   return JSON.stringify(saved);
@@ -316,6 +378,7 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     spark: decFromString(saved.spark),
     bestSparkRun: decFromString(saved.bestSparkRun ?? '0'),
     totalSpark: decFromString(saved.totalSpark ?? '0'),
+    runSeconds: num(saved.runSeconds, 0, 0),
     dims,
     sparkUpgrades: levelsOf(saved.sparkUpgrades, BAL.sparkUpgrades),
     dimBoosts,
@@ -330,7 +393,8 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     shardsEver: decFromString(saved.shardsEver ?? '0'),
     collapses: int(saved.collapses, 0, 0),
     shardUpgrades: levelsOf(saved.shardUpgrades, BAL.shardUpgrades),
-    starChart: activeSetOf(saved.starChart, KNOWN_STAR_NODES),
+    bestCollapseGain: decFromString(saved.bestCollapseGain ?? '0'),
+    starChart: ranksOf(saved.starChart),
     automation: togglesOf(saved.automation, KNOWN_AUTOMATION),
     autobuyTimer: 0,
 
@@ -341,6 +405,7 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     prismGrid: levelsOf(saved.prismGrid, BAL.prismGrid),
     elements: elementsOf(saved.elements),
     challenges: challengesOf(saved.challenges),
+    challengeElapsed: num(saved.challengeElapsed, 0, 0),
     activeChallenge:
       typeof saved.activeChallenge === 'string' && KNOWN_CHALLENGES.has(saved.activeChallenge)
         ? saved.activeChallenge
@@ -351,9 +416,12 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     aeonEver: decFromString(saved.aeonEver ?? '0'),
     converges: int(saved.converges, 0, 0),
     aeonTree: activeSetOf(saved.aeonTree, KNOWN_AEON_NODES),
+    aeonGrid: levelsOf(saved.aeonGrid, BAL.aeonUpgrades),
     ore: decFromString(saved.ore ?? '0'),
-    miners: levelsOf(saved.miners, KNOWN_MINERS),
+    oreEver: decFromString(saved.oreEver ?? saved.ore ?? '0'),
+    miners: levelsOf(saved.miners, KNOWN_MINER_DEFS),
     research: activeSetOf(saved.research, KNOWN_RESEARCH),
+    researchGrid: levelsOf(saved.researchGrid, BAL.researchGrid),
     flux: decFromString(saved.flux ?? '0'),
     // Timed boosts: clamp to their maximum plausible span so a tampered save
     // cannot smuggle in a year of warp.
@@ -366,8 +434,10 @@ export function deserializeState(json: string, now: number = Date.now()): GameSt
     singularityEver: decFromString(saved.singularityEver ?? '0'),
     unifies: int(saved.unifies, 0, 0),
     metaShop: activeSetOf(saved.metaShop, KNOWN_META),
+    metaGrid: levelsOf(saved.metaGrid, BAL.metaGrid),
     achievements: activeSetOf(saved.achievements, KNOWN_ACHIEVEMENTS),
     pendingAchievements: [],
+    milestones: milestonesOf(saved.milestones),
 
     options: {
       notation: notationOf(rawOptions.notation),

@@ -3,17 +3,41 @@
  *
  * Spark is the headline and everything else is a chip, because that is what
  * is true — Spark is the live resource that moves every tick, and the rest
- * are banked totals you read between resets. The old bar gave all six the
- * same size and weight, so a screen full of numbers had no entry point.
+ * are banked totals you read between resets.
  *
  * THE SPECTRUM RULE beneath it is the signature of the whole app: one segment
  * per prestige layer, in that layer's hue, lit as you unlock it. It is a
  * progress bar for the entire game that costs three pixels of height, and it
- * is the reason the layer hues are held at a matched chroma in the theme —
- * side by side in one rule, they have to read as an ordered spectrum.
+ * is the reason the layer hues are held at a matched chroma in the theme.
+ *
+ * ===========================================================================
+ * WHY THE HEADLINE AND THE CHIPS ARE ON SEPARATE ROWS
+ * ===========================================================================
+ * They used to share one `flexWrap: 'wrap'` row, and that is the bug that made
+ * "the whole design start shifting" the moment an autobuyer was switched on.
+ *
+ * The mechanism: an autobuyer buys MAX every pass, so Spark is drained to
+ * almost nothing and climbs back, over and over, once a second or faster. The
+ * headline is a formatted number, so its rendered STRING LENGTH swings with it
+ * — "✦ 4.21K" is seven characters and "✦ 986.54Qa" is ten. Tabular figures
+ * (which the theme does set) fix the width of each DIGIT; they cannot fix the
+ * width of a string that gains and loses characters. So the row's intrinsic
+ * width crossed the container width and went back, the chips wrapped onto a
+ * second line and unwrapped, the bar's height changed by a whole line — and
+ * because the bar sits above the tab content, every screen below it jumped by
+ * that much, several times a second.
+ *
+ * The fix is structural rather than cosmetic: the two blocks no longer share a
+ * line, so nothing either of them does can reflow the other. The headline row
+ * has a fixed height and clips; the chips have their own fixed-height row and
+ * scroll sideways when there are more than fit. Nothing in this component can
+ * change height any more, whatever the numbers do.
+ *
+ * The same rule is applied wherever a live number sits next to other content:
+ * `Row`'s cost column is a fixed width and its subtext is pinned to one line.
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { format } from '../../game/numbers';
 import { sparkRate } from '../../game/systems/dimensions';
@@ -30,6 +54,7 @@ export function ResourceBar() {
   const showMotes = motesUnlocked(game);
   const showShards = game.shardsEver.gt(0) || game.ascends > 0;
   const showPrism = game.ascends > 0;
+  const showAeon = game.converges > 0;
   const showOre = game.converges > 0;
   const showSing = game.unifies > 0;
 
@@ -43,19 +68,26 @@ export function ResourceBar() {
     { color: LAYERS.singularity.color, lit: showSing },
   ];
 
+  const anyChip = showMotes || showShards || showPrism || showOre || showAeon || showSing;
+
   return (
     <View style={styles.bar}>
       <View style={styles.headline}>
-        <View>
-          <Text style={styles.spark}>
-            {LAYERS.spark.glyph} {format(game.spark, { notation })}
-          </Text>
-          <Text style={styles.rate}>
-            +{format(sparkRate(game), { notation, small: true })} per second
-          </Text>
-        </View>
+        <Text style={styles.spark} numberOfLines={1}>
+          {LAYERS.spark.glyph} {format(game.spark, { notation })}
+        </Text>
+        <Text style={styles.rate} numberOfLines={1}>
+          +{format(sparkRate(game), { notation, small: true })}/s
+        </Text>
+      </View>
 
-        <View style={styles.chips}>
+      {anyChip && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chips}
+        >
           {showMotes && (
             <Chip
               glyph={LAYERS.mote.glyph}
@@ -80,6 +112,14 @@ export function ResourceBar() {
               caption="prism"
             />
           )}
+          {showAeon && (
+            <Chip
+              glyph={LAYERS.aeon.glyph}
+              value={format(game.aeon, { notation })}
+              color={LAYERS.aeon.color}
+              caption="aeon"
+            />
+          )}
           {showOre && (
             <Chip
               glyph={LAYERS.ore.glyph}
@@ -96,8 +136,8 @@ export function ResourceBar() {
               caption="singularity"
             />
           )}
-        </View>
-      </View>
+        </ScrollView>
+      )}
 
       <View style={styles.spectrum}>
         {ladder.map((seg, i) => (
@@ -114,22 +154,36 @@ export function ResourceBar() {
   );
 }
 
+/**
+ * Every height here is FIXED and every row clips. That is the whole contract
+ * of this component: the tab content below it must never move because a
+ * number above it got longer.
+ */
+const HEADLINE_H = 40;
+const CHIPS_H = 34;
+
 const styles = StyleSheet.create({
   bar: { backgroundColor: palette.bgDeep },
   headline: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'baseline',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    rowGap: spacing.sm,
-    columnGap: spacing.md,
+    height: HEADLINE_H,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    overflow: 'hidden',
   },
-  spark: { ...type.display, color: palette.core },
-  rate: { ...type.micro, color: palette.faint, marginTop: 1, ...mono },
-  chips: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md, flexShrink: 1 },
+  /** flexShrink + minWidth:0 so a 1e5000 headline truncates instead of pushing. */
+  spark: { ...type.display, color: palette.core, flexShrink: 1, minWidth: 0 },
+  rate: { ...type.micro, color: palette.faint, ...mono, flexShrink: 0, marginLeft: spacing.sm },
+  chipScroll: { height: CHIPS_H, flexGrow: 0 },
+  chips: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+  },
   spectrum: { flexDirection: 'row', height: 2, gap: 1 },
   segment: { flex: 1, height: 2 },
 });

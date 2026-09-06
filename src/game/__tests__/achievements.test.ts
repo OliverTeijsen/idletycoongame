@@ -33,8 +33,8 @@ describe('definitions', () => {
 
   it('every achievement is reachable — a maxed state earns them all', () => {
     const s = defaultState(0);
-    s.bestSparkRun = D('1e200');
-    s.totalSpark = D('1e200');
+    s.bestSparkRun = D('1e2000');
+    s.totalSpark = D('1e2000');
     s.dims = s.dims.map(() => ({ bought: 100, amount: D('1e20'), unlocked: true }));
     s.dimBoosts = 30;
     s.totalTaps = 10000;
@@ -49,16 +49,22 @@ describe('definitions', () => {
     s.prism = D(1e3);
     s.aeon = D(100);
     s.singularity = D(50);
-    for (const node of BAL.starChart) s.starChart[node.id] = true;
+    // Ranked chart: enough ranks to clear the "total ranks" achievements too.
+    for (const node of BAL.starChart) s.starChart[node.id] = node.maxRank ?? 20;
     s.elements = { points: 5, alloc: { lux: 15 }, progress: 0 };
     for (const c of BAL.challenges.defs) s.challenges[c.id] = c.maxTier;
     s.miners = { drill: 5 };
     s.ore = D(1e6);
+    s.oreEver = D('1e20');
     for (const r of BAL.research) s.research[r.id] = true;
+    for (const r of BAL.researchGrid) s.researchGrid[r.id] = 10;
+    for (const u of BAL.prismGrid) s.prismGrid[u.id] = 10;
+    for (const u of BAL.aeonUpgrades) s.aeonGrid[u.id] = 10;
+    for (const u of BAL.metaGrid) s.metaGrid[u.id] = 10;
     s.boostSlots = ['kindler', 'weaver', 'warden'];
     s.flux = D(500);
     s.warpRemaining = 60;
-    s.timePlayed = 200000;
+    s.timePlayed = 800 * 3600;
     for (const m of BAL.metaShop) s.metaShop[m.id] = true;
     s.aeonTree = { autoCollapse: true };
 
@@ -98,12 +104,20 @@ describe('earning', () => {
 });
 
 describe('multiplier', () => {
-  it('is 1 + 0.01 per earned achievement and reaches globalMult', () => {
+  /**
+   * MULTIPLICATIVE, not "1 + 0.01 per achievement". The additive form was the
+   * textbook dead buff this rebalance exists to remove: sixty achievements
+   * bought a total of "+60%", invisible beside the 1e40 the rest of the stack
+   * produces by the second day. As an exponent it is worth the same fraction
+   * of your output forever.
+   */
+  it('compounds per earned achievement and reaches globalMult', () => {
     const s = defaultState(0);
+    const per = D(BAL.achievements.perAchievement);
     expect(achievementMult(s).eq(ONE)).toBe(true);
     s.achievements = { firstOrbiter: true, taps100: true, firstMote: true };
-    expect(achievementMult(s).sub(D(1.03)).abs().lt(D(1e-9))).toBe(true);
-    expect(globalMult(s).gte(D(1.03))).toBe(true);
+    expect(achievementMult(s).sub(per.pow(3)).abs().lt(D(1e-9))).toBe(true);
+    expect(globalMult(s).gte(per.pow(3))).toBe(true);
   });
 });
 

@@ -27,8 +27,26 @@ describe('flux banking', () => {
     s.dims[0].amount = D(10);
     const cap = offlineCapSeconds(s);
     const summary = applyOffline(s, cap + 1200)!;
-    expect(summary.fluxGained.toNumber()).toBe(20);
-    expect(s.flux.toNumber()).toBe(20);
+    // 20 minutes of overflow at 1/min, plus the online trickle the simulated
+    // capped hours paid. The summary reports the whole move, and it must equal
+    // the balance — otherwise the modal disagrees with the Mine tab.
+    expect(summary.fluxGained.toNumber()).toBeGreaterThan(20);
+    expect(s.flux.eq(summary.fluxGained)).toBe(true);
+  });
+
+  /**
+   * Flux used to arrive only from offline overflow, which meant a player who
+   * never closes the app never saw the system at all — a strange property for
+   * a feature that owns a third of the Mine tab.
+   */
+  it('a slow trickle also arrives while you play, but only after P3', () => {
+    const locked = defaultState(0);
+    tick(locked, 600);
+    expect(locked.flux.eq(ZERO)).toBe(true);
+
+    const s = p3();
+    tick(s, 600);
+    expect(s.flux.sub(BAL.timeflux.fluxPerOnlineMinute.mul(10)).abs().lt(D(1e-6))).toBe(true);
   });
 });
 
@@ -104,16 +122,21 @@ describe('boost managers', () => {
     toggleManager(s, 'kindler');
     toggleManager(s, 'weaver');
     toggleManager(s, 'warden');
-    expect(kindlerMult(s).toNumber()).toBe(2);
-    expect(weaverMult(s).toNumber()).toBe(1.5);
+    /*
+     * Managers are big multipliers against a scarce number of slots — that IS
+     * the design. A x1.5 everyone eventually owns all of is not a choice, it
+     * is a formality, so these are x5 / x4 / x3 with one base slot.
+     */
+    expect(kindlerMult(s).toNumber()).toBe(5);
+    expect(weaverMult(s).toNumber()).toBe(4);
     expect(wardenSpeed(s)).toBe(2);
     expect(seerCapMult(s)).toBe(1);
-    expect(sparkMult(s).gte(D(2))).toBe(true); // kindler reaches sparkMult
+    expect(sparkMult(s).gte(D(5))).toBe(true); // kindler reaches sparkMult
 
     // seer raises the offline cap
     const cap = offlineCapSeconds(s);
     toggleManager(s, 'warden');
     toggleManager(s, 'seer');
-    expect(offlineCapSeconds(s)).toBeCloseTo(cap * 1.5, 6);
+    expect(offlineCapSeconds(s)).toBeCloseTo(cap * 2, 6);
   });
 });

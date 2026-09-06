@@ -16,14 +16,16 @@ import { adService, RewardSlot } from '../services/ads';
 import { defaultState } from '../game/state';
 import { AutomationId, toggleAutobuyer } from '../game/systems/automation';
 import { enterChallenge, exitChallenge } from '../game/systems/challenges';
-import { buyDim, doDimBoost } from '../game/systems/dimensions';
+import { buyDim, doDimBoost, tapGain } from '../game/systems/dimensions';
 import { ElementId } from '../game/balance';
 import { allocateElement, respecElements } from '../game/systems/elements';
 import { toggleManager } from '../game/systems/managers';
-import { buyMiner, buyResearch } from '../game/systems/minerals';
+import { buyMiner, buyResearch, buyResearchGrid } from '../game/systems/minerals';
 import { buyMoteUpgrade } from '../game/systems/motes';
 import {
+  buyAeonGrid,
   buyAeonNode,
+  buyMetaGrid,
   buyMetaUpgrade,
   buyPrismUpgrade,
   buyShardUpgrade,
@@ -34,7 +36,7 @@ import {
 } from '../game/systems/prestige';
 import { startFluxBoost, startWarp } from '../game/systems/timeflux';
 import { buyStarNode, respecStarChart } from '../game/systems/starchart';
-import { buySparkUpgrade, tapPower } from '../game/systems/upgrades';
+import { buySparkUpgrade } from '../game/systems/upgrades';
 import { BuyAmount, GameOptions, GameState } from '../game/types';
 import { clearSave, loadGame, saveGame } from '../services/storage';
 
@@ -55,9 +57,12 @@ interface GameStore {
   converge(): void;
   unify(): void;
   buyMetaUpgrade(id: string): void;
+  buyMetaGrid(id: string): void;
   buyAeonNode(id: string): void;
+  buyAeonGrid(id: string): void;
   buyMiner(id: string): void;
   buyResearch(id: string): void;
+  buyResearchGrid(id: string): void;
   toggleManager(id: string): void;
   startWarp(): void;
   startFluxBoost(): void;
@@ -68,6 +73,8 @@ interface GameStore {
   exitChallenge(): void;
   buyShardUpgrade(id: string): void;
   buyStarNode(id: string): void;
+  /** Long-press: buy ranks until they run out or the Shards do. */
+  buyStarNodeMany(id: string): void;
   respecStarChart(): void;
   toggleAutobuyer(id: AutomationId): void;
   setBuyAmount(amount: BuyAmount): void;
@@ -113,7 +120,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tap() {
     const game = get().game;
-    const gain = tapPower(game);
+    // tapGain, not tapPower: a tap is worth the larger of its flat power and
+    // a slice of current production, so it stays useful after every reset.
+    const gain = tapGain(game);
     game.spark = game.spark.add(gain);
     game.totalSpark = game.totalSpark.add(gain);
     if (game.spark.gt(game.bestSparkRun)) game.bestSparkRun = game.spark;
@@ -190,9 +199,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  buyMetaGrid(id) {
+    const game = get().game;
+    if (buyMetaGrid(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
   buyAeonNode(id) {
     const game = get().game;
     if (buyAeonNode(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyAeonGrid(id) {
+    const game = get().game;
+    if (buyAeonGrid(game, id)) {
       set({ game: republish(game) });
       get().save();
     }
@@ -206,6 +231,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyResearch(id) {
     const game = get().game;
     if (buyResearch(game, id)) {
+      set({ game: republish(game) });
+      get().save();
+    }
+  },
+
+  buyResearchGrid(id) {
+    const game = get().game;
+    if (buyResearchGrid(game, id)) {
       set({ game: republish(game) });
       get().save();
     }
@@ -266,6 +299,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyStarNode(id) {
     const game = get().game;
     if (buyStarNode(game, id)) set({ game: republish(game) });
+  },
+
+  /*
+   * Bounded, and it loops over the LIVE state rather than a snapshot: the
+   * chart is where a thousand Shards go, and buying one rank at a time up a
+   * geometric price curve is the kind of clicking a game should do for you.
+   */
+  buyStarNodeMany(id) {
+    const game = get().game;
+    let bought = false;
+    for (let i = 0; i < 50 && buyStarNode(game, id); i++) bought = true;
+    if (bought) set({ game: republish(game) });
   },
 
   respecStarChart() {

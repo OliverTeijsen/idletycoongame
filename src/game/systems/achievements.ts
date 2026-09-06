@@ -27,7 +27,16 @@ function unlockedTiers(state: GameState): number {
 }
 
 function starNodesActive(state: GameState): number {
-  return Object.values(state.starChart).filter(Boolean).length;
+  return Object.values(state.starChart).filter((rank) => rank > 0).length;
+}
+
+/** Total ranks across the whole chart — the number that keeps climbing. */
+function starRanksTotal(state: GameState): number {
+  return Object.values(state.starChart).reduce((a, b) => a + b, 0);
+}
+
+function gridLevels(grid: Record<string, number>): number {
+  return Object.values(grid).reduce((a, b) => a + b, 0);
 }
 
 function researchOwnedCount(state: GameState): number {
@@ -61,6 +70,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   spark('spark1e30', 'Galactic', '1e30'),
   spark('spark1e60', 'Beyond Counting', '1e60'),
   spark('spark1e100', 'Googolspark', '1e100'),
+  spark('spark1e300', 'Past the Double', '1e300'),
+  spark('spark1e1000', 'Kilo-Exponent', '1e1000'),
 
   // — Orbiters ————————————————————————————————————————————————————————
   {
@@ -275,14 +286,14 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: 'star5',
     name: 'Navigator',
-    desc: 'Activate 5 Star Chart nodes',
+    desc: 'Own 5 different Star Chart nodes',
     group: 'depths',
     check: (s) => starNodesActive(s) >= 5,
   },
   {
     id: 'star11',
     name: 'Cartographer',
-    desc: 'Activate 11 Star Chart nodes',
+    desc: 'Own 11 different Star Chart nodes',
     group: 'depths',
     check: (s) => starNodesActive(s) >= 11,
   },
@@ -298,7 +309,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: 'Capstone',
     desc: 'Reach 10 points in a single element',
     group: 'depths',
-    check: (s) => maxElementAlloc(s) >= BAL.elements.capstoneAt,
+    check: (s) => maxElementAlloc(s) >= BAL.elements.capstones[0],
   },
   {
     id: 'challenge1',
@@ -379,6 +390,99 @@ export const ACHIEVEMENTS: Achievement[] = [
     check: (s) => s.warpRemaining > 0,
   },
 
+  // — The long haul ——————————————————————————————————————————————————
+  /*
+   * These exist because the achievement multiplier is `1.03^earned` — an
+   * always-relevant global — and a list that stops at the first Unify would
+   * stop paying on day five of a month-long game. Every one of them is a
+   * milestone in a DIFFERENT lane, so they also read as a checklist of the
+   * systems a player has actually engaged with.
+   */
+  {
+    id: 'star40',
+    name: 'Deep Sky',
+    desc: 'Buy 40 Star Chart ranks in total',
+    group: 'depths',
+    check: (s) => starRanksTotal(s) >= 40,
+  },
+  {
+    id: 'star200',
+    name: 'The Whole Sky',
+    desc: 'Buy 200 Star Chart ranks in total',
+    group: 'depths',
+    check: (s) => starRanksTotal(s) >= 200,
+  },
+  {
+    id: 'ore1e9',
+    name: 'Deep Seam',
+    desc: 'Mine ⛏ 1e9 Ore in one cycle',
+    group: 'depths',
+    check: (s) => s.oreEver.gte(D('1e9')),
+  },
+  {
+    id: 'ore1e15',
+    name: 'Hollow World',
+    desc: 'Mine ⛏ 1e15 Ore in one cycle',
+    group: 'depths',
+    check: (s) => s.oreEver.gte(D('1e15')),
+  },
+  {
+    id: 'refine5',
+    name: 'Refinery',
+    desc: 'Reach Deep Refinement level 5',
+    group: 'depths',
+    check: (s) => (s.researchGrid['deepRefine'] ?? 0) >= 5,
+  },
+  {
+    id: 'prismGrid20',
+    name: 'Full Spectrum',
+    desc: 'Buy 20 Prism grid levels in total',
+    group: 'prestige',
+    check: (s) => gridLevels(s.prismGrid) >= 20,
+  },
+  {
+    id: 'aeonGrid10',
+    name: 'Deep Well',
+    desc: 'Buy 10 Aeon upgrade levels in total',
+    group: 'prestige',
+    check: (s) => gridLevels(s.aeonGrid) >= 10,
+  },
+  {
+    id: 'eternalFlame3',
+    name: 'Still Burning',
+    desc: 'Reach Eternal Flame level 3',
+    group: 'mastery',
+    check: (s) => (s.metaGrid['eternalFlame'] ?? 0) >= 3,
+  },
+  {
+    id: 'unify10',
+    name: 'Again and Again',
+    desc: 'Unify 10 times',
+    group: 'mastery',
+    check: (s) => s.unifies >= 10,
+  },
+  {
+    id: 'trials20',
+    name: 'Trial Hardened',
+    desc: 'Complete 20 Trial tiers',
+    group: 'depths',
+    check: (s) => challengeTiersTotal(s) >= 20,
+  },
+  {
+    id: 'played168h',
+    name: 'A Week in the Gyre',
+    desc: 'Play for 168 hours',
+    group: 'mastery',
+    check: (s) => s.timePlayed >= 168 * 3600,
+  },
+  {
+    id: 'played720h',
+    name: 'A Month in the Gyre',
+    desc: 'Play for 720 hours',
+    group: 'mastery',
+    check: (s) => s.timePlayed >= 720 * 3600,
+  },
+
   // — Mastery ————————————————————————————————————————————————————————
   {
     id: 'played1h',
@@ -435,11 +539,19 @@ export function achievementCount(state: GameState): number {
   return Object.values(state.achievements).filter(Boolean).length;
 }
 
-/** Global multiplier: 1 + 0.01 per earned achievement. */
+/**
+ * Global multiplier: perAchievement ^ earned.
+ *
+ * It used to be 1 + 0.01·count — a textbook dead buff. Sixty achievements
+ * bought a total of "+60%", which is a fortune at ×1 and literally invisible
+ * next to the ×1e40 the rest of the stack is producing by the second day. As
+ * an EXPONENT it is worth the same fraction of your output forever, which is
+ * rule 1 in balance.ts.
+ */
 export function achievementMult(state: GameState): Decimal {
   const count = achievementCount(state);
   if (count <= 0) return ONE;
-  return cleanMul(ONE.add(D(BAL.achievements.multPer).mul(count)));
+  return cleanMul(D(BAL.achievements.perAchievement).pow(count));
 }
 
 /**

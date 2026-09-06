@@ -9,6 +9,7 @@ import {
   doUnify,
   metaOwned,
   unifyGain,
+  unifyGates,
   unifyUnlocked,
 } from '../systems/prestige';
 
@@ -30,7 +31,10 @@ function readyState() {
   s.prismEver = D(200);
   s.ascends = 10;
   s.elements = { points: 3, alloc: { lux: 5 }, progress: 0 };
-  s.challenges = { famine: 2, dim: 1 };
+  // Past the Unify Trial gate, and past the Deep Refinement gate: since the
+  // Phase 12 rebalance those are two of Unify's four doors (BAL.gates).
+  s.challenges = { famine: 8, dim: 8 };
+  s.researchGrid = { deepRefine: BAL.gates.unifyRefineLevels };
   s.shards = D(1e4);
   s.shardsEver = D(1e5);
   s.collapses = 50;
@@ -40,12 +44,26 @@ function readyState() {
 }
 
 describe('unify gating & gain', () => {
-  it('needs the aeon threshold AND the singularity seed', () => {
+  /**
+   * Four gates from four different systems. The point of `unifyGates` is that
+   * "why can't I Unify" has four possible answers and the UI has to be able to
+   * name the right one, so the shape of that list is part of the contract.
+   */
+  it('needs all four gates: aeon, the seed, trials and refinement', () => {
     const s = defaultState(0);
     s.aeonEver = BAL.unify.unlockAeon.add(2);
     expect(unifyUnlocked(s)).toBe(true); // card shows
-    expect(canUnify(s)).toBe(false); // but the seed gates the button
+    expect(canUnify(s)).toBe(false); // the other three doors are shut
+    expect(unifyGates(s).filter((g) => !g.met).map((g) => g.id)).toEqual([
+      'seed',
+      'trials',
+      'refine',
+    ]);
+
     s.research = { singularitySeed: true };
+    s.challenges = { famine: 8, dim: 8 };
+    s.researchGrid = { deepRefine: BAL.gates.unifyRefineLevels };
+    expect(unifyGates(s).every((g) => g.met)).toBe(true);
     expect(canUnify(s)).toBe(true);
   });
 
@@ -54,17 +72,28 @@ describe('unify gating & gain', () => {
     s.aeonEver = BAL.unify.unlockAeon;
     s.aeon = ZERO; // the whole tree has been bought
     s.research = { singularitySeed: true };
+    s.challenges = { famine: 8, dim: 8 };
+    s.researchGrid = { deepRefine: BAL.gates.unifyRefineLevels };
     expect(canUnify(s)).toBe(true);
   });
 
   it('gain follows floor((aeonEver/coef)^exp) above the unlock threshold', () => {
     const s = defaultState(0);
-    s.aeonEver = BAL.unify.unlockAeon; // 30 → (2.5)^0.55 → 1: the cheap first one
-    expect(unifyGain(s).toNumber()).toBe(1);
-    s.aeonEver = D(60);
-    expect(unifyGain(s).toNumber()).toBe(2);
-    s.aeonEver = D(1500);
-    expect(unifyGain(s).toNumber()).toBe(14); // long tail, but a walkable one
+    const gainAt = (aeon: number) => {
+      s.aeonEver = D(aeon);
+      return unifyGain(s).toNumber();
+    };
+    const expected = (aeon: number) =>
+      Math.floor(Math.pow(aeon / BAL.unify.coef.toNumber(), BAL.unify.exp));
+
+    // The first one is cheap on purpose; the tail is long but walkable.
+    expect(gainAt(BAL.unify.unlockAeon.toNumber())).toBeGreaterThanOrEqual(1);
+    expect(gainAt(BAL.unify.unlockAeon.toNumber())).toBe(
+      expected(BAL.unify.unlockAeon.toNumber()),
+    );
+    expect(gainAt(1500)).toBe(expected(1500));
+    expect(gainAt(1500)).toBeGreaterThan(gainAt(300));
+
     s.aeonEver = BAL.unify.unlockAeon.sub(1);
     expect(unifyGain(s).eq(ZERO)).toBe(true); // below unlock
   });
@@ -75,8 +104,9 @@ describe('unify reset semantics', () => {
     const s = readyState();
     expect(doUnify(s)).toBe(true);
 
-    expect(s.singularity.toNumber()).toBe(2); // (45/12)^0.55
-    expect(s.singularityEver.toNumber()).toBe(2);
+    const gain = Math.floor(Math.pow(45 / BAL.unify.coef.toNumber(), BAL.unify.exp));
+    expect(s.singularity.toNumber()).toBe(gain);
+    expect(s.singularityEver.toNumber()).toBe(gain);
     expect(s.unifies).toBe(1);
 
     // P3 layer + minerals + research + flux gone
@@ -97,7 +127,7 @@ describe('unify reset semantics', () => {
     // element alloc refunded, points kept; trial rewards kept
     expect(s.elements.points).toBe(8); // 3 + 5
     expect(s.elements.alloc).toEqual({});
-    expect(s.challenges).toEqual({ famine: 2, dim: 1 });
+    expect(s.challenges).toEqual({ famine: 8, dim: 8 });
 
     // manager slots shrank with research — assignments trimmed to base slot
     expect(s.boostSlots).toEqual(['kindler']);
@@ -112,29 +142,67 @@ describe('unify reset semantics', () => {
     s.metaShop = { keepResearch: true, starterAeon: true };
     doUnify(s);
     expect(s.research).toEqual({ singularitySeed: true, oreSluice: true, slotA: true });
-    expect(s.aeon.toNumber()).toBe(2);
-    expect(s.aeonEver.toNumber()).toBe(2);
+    expect(s.aeon.toNumber()).toBe(5);
+    expect(s.aeonEver.toNumber()).toBe(5);
+  });
+
+  /**
+   * Buried Fleet and Fixed Heaven are the two keeps the endgame actually turns
+   * on: without them a Unify wipes lifetime Ore (a power-law multiplier worth
+   * five orders of magnitude) and every ranked Star Chart node (where the two
+   * gain-rate accelerators live), and the second cycle runs slower than the
+   * first. That is why they are the cheapest things in the shop.
+   */
+  it('buried fleet keeps the mining lane; fixed heaven keeps the chart', () => {
+    const s = readyState();
+    s.oreEver = D(1e9);
+    s.starChart = { ignite: 4 };
+    s.metaShop = { keepMiners: true, keepChart2: true };
+    doUnify(s);
+    expect(s.ore.toNumber()).toBe(5000);
+    expect(s.oreEver.toNumber()).toBe(1e9);
+    expect(s.miners).toEqual({ drill: 8 });
+    expect(s.starChart).toEqual({ ignite: 4 });
+  });
+
+  it('without them, the mining lane and the chart are gone', () => {
+    const s = readyState();
+    s.oreEver = D(1e9);
+    s.starChart = { ignite: 4 };
+    doUnify(s);
+    expect(s.oreEver.eq(ZERO)).toBe(true);
+    expect(s.miners).toEqual({});
+    expect(s.starChart).toEqual({});
   });
 });
 
 describe('singularity multiplier', () => {
-  it('×10 per lifetime singularity, persists across resets, reaches globalMult', () => {
+  /**
+   * `multPer` is enormous (1e7) and has to be: Unify takes away Aeon, Prism
+   * and the whole Star Chart, which at the gate are worth ~1e20 between them.
+   * A top layer that pays less than it costs is a button whose only reward is
+   * that it is required — see BAL.unify.
+   */
+  it('compounds per lifetime singularity, persists across resets, reaches globalMult', () => {
     const s = defaultState(0);
+    const per = BAL.unify.multPer;
     expect(singularityMult(s).eq(ONE)).toBe(true);
     s.singularityEver = D(2);
-    expect(singularityMult(s).toNumber()).toBe(100);
-    expect(globalMult(s).gte(D(100))).toBe(true);
+    expect(singularityMult(s).eq(per.pow(2))).toBe(true);
+    expect(globalMult(s).gte(per.pow(2))).toBe(true);
 
     // spending singularity must not reduce it
     s.singularity = ZERO;
-    expect(singularityMult(s).toNumber()).toBe(100);
+    expect(singularityMult(s).eq(per.pow(2))).toBe(true);
   });
 
-  it('singular engine multiplies ×3 on top', () => {
+  it('singular engine and eternal flame multiply on top', () => {
     const s = defaultState(0);
     s.singularityEver = D(1);
     s.metaShop = { metaEngine: true };
-    expect(singularityMult(s).toNumber()).toBe(30);
+    expect(singularityMult(s).eq(BAL.unify.multPer.mul(5))).toBe(true);
+    s.metaGrid = { eternalFlame: 2 };
+    expect(singularityMult(s).eq(BAL.unify.multPer.mul(5).mul(100))).toBe(true);
   });
 });
 
@@ -142,11 +210,12 @@ describe('meta shop', () => {
   it('one-time purchases with singularity', () => {
     const s = defaultState(0);
     s.singularity = D(3);
-    expect(buyMetaUpgrade(s, 'autoAscend')).toBe(true);
-    expect(s.singularity.toNumber()).toBe(2);
-    expect(metaOwned(s, 'autoAscend')).toBe(true);
-    expect(buyMetaUpgrade(s, 'autoAscend')).toBe(false);
-    expect(buyMetaUpgrade(s, 'metaEngine')).toBe(false); // costs 5
+    const archive = BAL.metaShop.find((m) => m.id === 'keepResearch')!;
+    expect(buyMetaUpgrade(s, 'keepResearch')).toBe(true);
+    expect(s.singularity.eq(D(3).sub(archive.cost))).toBe(true);
+    expect(metaOwned(s, 'keepResearch')).toBe(true);
+    expect(buyMetaUpgrade(s, 'keepResearch')).toBe(false);
+    expect(buyMetaUpgrade(s, 'autoUnify')).toBe(false); // out of reach at 3
     expect(buyMetaUpgrade(s, 'nonsense')).toBe(false);
   });
 });
@@ -179,6 +248,8 @@ describe('auto-prestige', () => {
     s.metaShop = { autoAscend: true, autoConverge: true };
     s.prismEver = BAL.converge.unlockPrism.mul(2);
     s.prism = s.prismEver;
+    // Converge's own sideways gate: cleared Trials (BAL.gates).
+    s.challenges = { solitary: BAL.gates.convergeTrialTiers };
     tickAutomation(s, 1);
     expect(s.converges).toBe(1);
     expect(s.aeon.gte(1)).toBe(true);

@@ -4,7 +4,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
 import { format, formatTime, formatWhole } from '../../game/numbers';
-import { minerCost, minerCount, oreRate, researchOwned } from '../../game/systems/minerals';
+import {
+  minerCost,
+  minerCount,
+  oreRate,
+  researchGridCost,
+  researchGridLevel,
+  researchOwned,
+} from '../../game/systems/minerals';
+import { oreMult } from '../../game/systems/multipliers';
 import { useGameStore } from '../../state/store';
 import { Row } from '../components/Row';
 import { SectionHeader } from '../components/Panel';
@@ -14,6 +22,7 @@ export function MineScreen() {
   const game = useGameStore((s) => s.game);
   const buyMiner = useGameStore((s) => s.buyMiner);
   const buyResearch = useGameStore((s) => s.buyResearch);
+  const buyResearchGrid = useGameStore((s) => s.buyResearchGrid);
   const startWarp = useGameStore((s) => s.startWarp);
   const startFluxBoost = useGameStore((s) => s.startFluxBoost);
   const notation = game.options.notation;
@@ -22,9 +31,18 @@ export function MineScreen() {
     <ScrollView contentContainerStyle={styles.scroll}>
       <Text style={styles.blurb}>
         Miners chew Ore out of the dark at {format(oreRate(game), { notation, small: true })} per
-        second. Ore and miners survive Collapse and Ascend; only Converge resets them. Research
-        is forever.
+        second. Ore and miners survive Collapse, Ascend AND Converge — this is the slow lane, and
+        it is the only one that never gets wiped short of a Unify.
       </Text>
+      {/*
+        The lifetime-Ore multiplier, stated plainly. It is the answer to "what
+        is mining actually FOR", and a player who cannot see it will (rightly)
+        conclude the lane is decoration.
+      */}
+      <View style={styles.oreMult}>
+        <Text style={styles.oreMultLabel}>All production, from Ore mined</Text>
+        <Text style={styles.oreMultValue}>×{format(oreMult(game), { notation })}</Text>
+      </View>
 
       <SectionHeader label="Miners" accent={palette.ore} />
       {BAL.miners.map((def) => {
@@ -68,6 +86,22 @@ export function MineScreen() {
         );
       })}
 
+      {BAL.researchGrid.map((def) => {
+        const level = researchGridLevel(game, def.id);
+        const cost = researchGridCost(game, def.id);
+        return (
+          <Row
+            key={def.id}
+            color={palette.ore}
+            title={def.name}
+            subtext={`${def.desc} · level ${level}`}
+            costText={`${LAYERS.ore.glyph} ${formatWhole(cost, notation)}`}
+            affordable={game.ore.gte(cost)}
+            onBuy={() => buyResearchGrid(def.id)}
+          />
+        );
+      })}
+
       <SectionHeader
         label="Time flux"
         accent={palette.aeon}
@@ -78,7 +112,7 @@ export function MineScreen() {
         }
       />
       <Text style={styles.blurb}>
-        Offline time past your cap banks as Flux instead of vanishing.
+        Offline time past your cap banks as Flux, and a slow trickle arrives while you play.
       </Text>
       <View style={styles.fluxRow}>
         <Pressable
@@ -111,6 +145,18 @@ export function MineScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xl * 2 },
   blurb: { ...type.body, color: palette.dim },
+  oreMult: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.line,
+    paddingVertical: spacing.sm,
+  },
+  oreMultLabel: { ...type.label, color: palette.faint },
+  oreMultValue: { ...type.figure, fontSize: 15, color: palette.ore },
   balance: { ...type.figure, fontSize: 14, color: palette.ore },
   fluxRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   fluxButton: {

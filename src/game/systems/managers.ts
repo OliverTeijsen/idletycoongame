@@ -16,6 +16,7 @@ export function managerSlots(state: GameState): number {
   let slots = BAL.managers.baseSlots;
   if (state.research['slotA']) slots += 1;
   if (state.research['slotB']) slots += 1;
+  if (state.research['slotC']) slots += 1;
   return slots;
 }
 
@@ -39,12 +40,23 @@ export function toggleManager(state: GameState, id: string): boolean {
   return true;
 }
 
+/**
+ * Manager multipliers are deliberately LARGE (×5, ×4, ×3) against a base of
+ * one slot. A manager is a permanent multiplier you can only have a few of,
+ * so its whole design is the choice between them — a ×1.5 that everyone
+ * eventually owns all of is not a choice, it is a formality.
+ */
 export function kindlerMult(state: GameState): Decimal {
-  return managerAssigned(state, 'kindler') ? D(2) : ONE;
+  return managerAssigned(state, 'kindler') ? D(5) : ONE;
 }
 
 export function weaverMult(state: GameState): Decimal {
-  return managerAssigned(state, 'weaver') ? D(1.5) : ONE;
+  return managerAssigned(state, 'weaver') ? D(4) : ONE;
+}
+
+/** Smith: Ore gain multiplier — the mining lane's manager. */
+export function smithMult(state: GameState): Decimal {
+  return managerAssigned(state, 'smith') ? D(3) : ONE;
 }
 
 /** Warden: autobuy interval divisor. */
@@ -54,5 +66,5 @@ export function wardenSpeed(state: GameState): number {
 
 /** Seer: offline-cap multiplier. */
 export function seerCapMult(state: GameState): number {
-  return managerAssigned(state, 'seer') ? 1.5 : 1;
+  return managerAssigned(state, 'seer') ? 2 : 1;
 }

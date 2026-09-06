@@ -80,13 +80,19 @@ function simulateOffline(state: GameState, elapsedSeconds: number): OfflineSumma
   const sparkBefore = state.spark;
   const motesBefore = state.motes;
   const oreBefore = state.ore;
+  const fluxBefore = state.flux;
 
   const step = clamped / BAL.offline.chunkSteps;
   for (let i = 0; i < BAL.offline.chunkSteps; i++) tick(state, step);
 
   const overflowSeconds = Math.max(0, elapsedSeconds - cap);
-  const fluxGained = fluxFromOverflow(state, overflowSeconds);
-  if (fluxGained.gt(0)) state.flux = clean(state.flux.add(fluxGained));
+  const overflowFlux = fluxFromOverflow(state, overflowSeconds);
+  if (overflowFlux.gt(0)) state.flux = clean(state.flux.add(overflowFlux));
+  // The summary reports ALL the Flux the absence produced — the overflow bonus
+  // AND the online trickle the simulated hours paid — because that is what the
+  // player's balance actually moved by. Reporting only the overflow made the
+  // modal quietly disagree with the number on the Mine tab.
+  const fluxGained = clean(state.flux.sub(fluxBefore));
 
   return {
     seconds: clamped,

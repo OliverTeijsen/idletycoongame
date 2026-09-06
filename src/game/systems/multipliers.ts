@@ -1,31 +1,35 @@
 /**
  * THE multiplier stack (spec §9) — the single place that composes boosts.
  *
- * Phases 0–2 only have Layer-0 sources; the composition order and the
- * breakdown structure are established now so later layers slot in without
- * rework. Tier-specific and resource-specific multipliers (Density, Focus,
- * Ignition, Cascade, Dimension Boosts) are composed HERE too, but exposed as
- * separate functions because they apply inside their own systems.
+ * EVERY entry here is a MULTIPLIER, never an addend. That is not a style
+ * choice: an economy whose output spans 1 to 1e5000 has no meaningful
+ * "+100,000", because the same reward is a fortune at minute one and invisible
+ * at minute ten. A multiplier is worth the same fraction of your output
+ * forever, which is the only way an upgrade bought on day 1 can still be worth
+ * having on day 30. See the three rules at the top of balance.ts.
  *
  * Composition order (append-only as layers unlock):
  *   base
- *   × achievementMult        (Phase 7)
- *   × starChartMult          (Phase 3)
- *   × elementMult            (Phase 4)
- *   × researchMult           (Phase 5)
- *   × challengeRewardMult    (Phase 4)
- *   × shardMult              (Phase 3)
- *   × prismMult              (Phase 4)
- *   × aeonMult               (Phase 5)
- *   × singularityMult        (Phase 6)
- *   × boostManagerMult       (Phase 5)
- *   × fluxBoostMult          (Phase 5)
+ *   × achievementMult        (1.03^earned)
+ *   × starChartMult          (ranked)
+ *   × elementMult
+ *   × researchMult           (Gyre Heart + Deep Refinement)
+ *   × oreMult                (lifetime Ore — the mining lane)
+ *   × challengeRewardMult
+ *   × shardMult
+ *   × shardLensMult
+ *   × prismMult
+ *   × prismGridMult
+ *   × aeonMult / aeonWellMult
+ *   × singularityMult / eternalFlameMult
+ *   × boostManagerMult
+ *   × fluxBoostMult
  *   → cleanMul(result)
  */
 import { BAL } from '../balance';
 import { D, Decimal, ONE, cleanMul, softcap } from '../numbers';
 import { GameState } from '../types';
-import { sparkUpgradeDef, sparkUpgradeLevel, upgradeMult } from './upgrades';
+import { gridMult, sparkUpgradeDef, sparkUpgradeLevel, upgradeMult } from './upgrades';
 import { moteUpgradeDef, moteUpgradeLevel } from './motes';
 import { achievementMult } from './achievements';
 import { starGlobalMult, starSpeedMult, starTierMult } from './starchart';
@@ -47,10 +51,18 @@ import { fluxBoostMult, rewardBoostMult } from './timeflux';
  * global multiplier and the measured re-run after Collapse #1 was *slower*
  * than the first climb — inverting §10's "re-runs 3–10× faster" rule. Spend
  * freely; the multiplier only grows.
+ *
+ * It is softcapped hard, and that is fine: this is not what Shards are FOR
+ * any more. The Star Chart and Shard Lens are, and both are uncapped.
  */
 export function shardMult(state: GameState): Decimal {
   const raw = ONE.add(BAL.collapse.multPerShard.mul(state.shardsEver));
   return cleanMul(softcap(raw, BAL.softcap.shard.t, BAL.softcap.shard.p));
+}
+
+/** Shard Lens: the endless Shard-tree multiplier. */
+export function shardLensMult(state: GameState): Decimal {
+  return gridMult(BAL.shardUpgrades, state.shardUpgrades, 'shardLens');
 }
 
 /**
@@ -65,30 +77,65 @@ export function prismMult(state: GameState): Decimal {
   return cleanMul(D(2).pow(capped));
 }
 
-/** Prism grid: Amplify (all production ×2 per level). */
+/** Prism grid: Amplify — all production, per level. */
 export function amplifyMult(state: GameState): Decimal {
-  return cleanMul(D(2).pow(state.prismGrid['amplify'] ?? 0));
+  return gridMult(BAL.prismGrid, state.prismGrid, 'amplify');
 }
 
-/** Prism grid: Momentum (speed ×1.5 per level). */
+/** Prism grid: Momentum — production speed, per level. */
 function momentumMult(state: GameState): Decimal {
-  return cleanMul(D(1.5).pow(state.prismGrid['momentum'] ?? 0));
+  return gridMult(BAL.prismGrid, state.prismGrid, 'momentum');
 }
 
-/** Research contribution to the global multiplier (Gyre Heart). Inline to keep this leaf-clean. */
-function researchGlobal(state: GameState): Decimal {
-  return state.research['gyreHeart'] ? D(2) : ONE;
+/** Aeon grid: Aeon Well — all production, per level. */
+export function aeonWellMult(state: GameState): Decimal {
+  return gridMult(BAL.aeonUpgrades, state.aeonGrid, 'aeonWell');
+}
+
+/** Meta grid: Eternal Flame — all production, per level. */
+export function eternalFlameMult(state: GameState): Decimal {
+  return gridMult(BAL.metaGrid, state.metaGrid, 'eternalFlame');
 }
 
 /**
- * Singularity multiplier: ×10 per lifetime Singularity (plus the Singular
- * Engine), persisting across EVERY reset — singularityEver never resets.
- * Exponent clamped against tampered saves; legit play earns a handful.
+ * Research contribution to the global multiplier: Gyre Heart (a one-time node,
+ * so its magnitude is bespoke) and Deep Refinement (the endless lane, read
+ * from its def) — Ore's own production lane.
+ */
+export function researchGlobalMult(state: GameState): Decimal {
+  let m = state.research['gyreHeart'] ? D(3) : ONE;
+  m = m.mul(gridMult(BAL.researchGrid, state.researchGrid, 'deepRefine'));
+  return cleanMul(m);
+}
+
+/**
+ * THE MINING MULTIPLIER: (1 + oreEver)^0.30 on all production.
+ *
+ * This is the answer to "mining doesn't do much". Research is a finite list,
+ * so once it is bought out Ore has nowhere to go and every miner purchase
+ * after that is worthless — which is exactly how the lane died. A power law on
+ * LIFETIME Ore is always growing and never runs away: Ore itself only tracks
+ * log(Spark) (miner counts are logarithmic in cost), so a 0.30 exponent on top
+ * of that is about as gentle as a permanent multiplier gets. Every miner you
+ * ever buy still pays, at hour 600.
+ */
+export function oreMult(state: GameState): Decimal {
+  const ever = state.oreEver;
+  if (ever.lte(ONE)) return ONE;
+  return cleanMul(ever.add(ONE).pow(BAL.oreMultExp));
+}
+
+/**
+ * Singularity multiplier: `BAL.unify.multPer` per lifetime Singularity (plus
+ * the Singular Engine and Eternal Flame), persisting across EVERY reset —
+ * singularityEver never resets. Exponent clamped against tampered saves; legit
+ * play earns a few dozen.
  */
 export function singularityMult(state: GameState): Decimal {
   const n = Math.min(1e3, Math.max(0, state.singularityEver.toNumber()));
   let m = BAL.unify.multPer.pow(n);
-  if (state.metaShop['metaEngine']) m = m.mul(3);
+  if (state.metaShop['metaEngine']) m = m.mul(5);
+  m = m.mul(eternalFlameMult(state));
   return cleanMul(m);
 }
 
@@ -101,10 +148,13 @@ export function globalMult(state: GameState): Decimal {
     achievementMult(state)
       .mul(starGlobalMult(state))
       .mul(elementGlobalMult(state))
-      .mul(researchGlobal(state))
+      .mul(researchGlobalMult(state))
+      .mul(oreMult(state))
       .mul(shardMult(state))
+      .mul(shardLensMult(state))
       .mul(prismMult(state))
       .mul(amplifyMult(state))
+      .mul(aeonWellMult(state))
       .mul(singularityMult(state))
       .mul(rewardBoostMult(state)),
   );
@@ -113,7 +163,7 @@ export function globalMult(state: GameState): Decimal {
 /**
  * Aeon multiplier on ALL tiers: tierMultPer^aeonEver × Deep Engine. Lifetime
  * Aeon, same never-punish-spending rule as shards/prism. Exponent clamped —
- * aeon grows log2-slow, but a tampered save must not overflow pow().
+ * aeon grows sqrt-slow, but a tampered save must not overflow pow().
  */
 export function aeonMult(state: GameState): Decimal {
   const n = Math.min(1e4, Math.max(0, state.aeonEver.toNumber()));
@@ -123,16 +173,21 @@ export function aeonMult(state: GameState): Decimal {
 }
 
 /**
- * Production-speed multiplier (Focus). A real production multiplier applied to
- * all tiers — the stage also reads it to spin orbiters faster.
+ * Production-speed multiplier. A real production multiplier applied to all
+ * tiers — the stage also reads it to spin orbiters faster.
  */
 export function speedMult(state: GameState): Decimal {
   // Still Ring challenge: speed locked to ×1 during the run.
   if (challengeActive(state, 'stillRing')) return ONE;
   const focus = moteUpgradeDef('focus');
   const focusRaw = focus ? upgradeMult(focus, moteUpgradeLevel(state, 'focus')) : ONE;
+  const overdrive = sparkUpgradeDef('overdrive');
+  const overdriveMult = overdrive
+    ? upgradeMult(overdrive, sparkUpgradeLevel(state, 'overdrive'))
+    : ONE;
   return cleanMul(
     softcap(focusRaw, BAL.softcap.focus.t, BAL.softcap.focus.p)
+      .mul(overdriveMult)
       .mul(starSpeedMult(state))
       .mul(elementSpeedMult(state))
       .mul(momentumMult(state))
@@ -163,6 +218,13 @@ export function sparkMult(state: GameState): Decimal {
   return cleanMul(m);
 }
 
+/** Motes' global lane: Crystallize (×1.25 per level, all production). */
+export function crystallizeMult(state: GameState): Decimal {
+  const def = moteUpgradeDef('crystallize');
+  if (!def) return ONE;
+  return upgradeMult(def, moteUpgradeLevel(state, 'crystallize'));
+}
+
 /**
  * Dimension Boost multiplier: mult^softcap(boosts). The EXPONENT is capped
  * (see BAL.softcap.dimBoostExp) so the boost feedback loop cannot run away.
@@ -174,12 +236,29 @@ export function dimBoostMult(state: GameState): Decimal {
   return cleanMul(BAL.dimBoost.mult.pow(capped));
 }
 
+/**
+ * Chain Reaction (Spark upgrade): tier k gets 1.03^(k·level).
+ *
+ * The only multiplier in the game that grows with a tier's DEPTH, so the
+ * upper tiers — which the autobuyers reach and the player never thinks about
+ * — become something worth deliberately pushing Dimension Boosts for.
+ */
+function chainReactionMult(state: GameState, tier: number): Decimal {
+  const def = sparkUpgradeDef('chainReaction');
+  if (!def) return ONE;
+  const level = sparkUpgradeLevel(state, 'chainReaction');
+  if (level <= 0) return ONE;
+  return cleanMul(def.effectPerLevel.pow(level * tier));
+}
+
 /** Per-tier multiplier (1-indexed). Boosts, Ignition, Cascade, stars, Solitary, Aeon. */
 export function tierMult(state: GameState, tier: number): Decimal {
   let m = dimBoostMult(state)
     .mul(starTierMult(state, tier))
     .mul(challengeTierMult(state))
-    .mul(aeonMult(state));
+    .mul(aeonMult(state))
+    .mul(crystallizeMult(state))
+    .mul(chainReactionMult(state, tier));
 
   if (tier === 1) {
     const ignition = sparkUpgradeDef('ignition');
@@ -204,14 +283,18 @@ export function multBreakdown(state: GameState): MultBreakdownEntry[] {
     { label: 'Dimension Boosts', value: dimBoostMult(state) },
     { label: 'Spark upgrades', value: sparkMult(state) },
     { label: 'Orbit speed', value: speedMult(state) },
+    { label: 'Motes (Crystallize)', value: crystallizeMult(state) },
     { label: 'Star Chart', value: starGlobalMult(state) },
     { label: 'Elements', value: elementGlobalMult(state) },
     { label: 'Challenge rewards', value: challengeTierMult(state) },
-    { label: 'Research', value: researchGlobal(state) },
+    { label: 'Research', value: researchGlobalMult(state) },
+    { label: 'Ore (lifetime)', value: oreMult(state) },
     { label: 'Shards', value: shardMult(state) },
+    { label: 'Shard Lens', value: shardLensMult(state) },
     { label: 'Prism', value: prismMult(state) },
     { label: 'Prism grid', value: amplifyMult(state) },
     { label: 'Aeon', value: aeonMult(state) },
+    { label: 'Aeon Well', value: aeonWellMult(state) },
     { label: 'Singularity', value: singularityMult(state) },
     { label: 'Managers', value: kindlerMult(state) },
     { label: 'Flux boost', value: fluxBoostMult(state) },

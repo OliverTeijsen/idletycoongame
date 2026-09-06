@@ -4,7 +4,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BAL } from '../../game/balance';
 import { formatTime } from '../../game/numbers';
-import { elementAlloc, elementAllocatable } from '../../game/systems/elements';
+import {
+  effectiveAlloc,
+  elementAlloc,
+  elementAllocatable,
+  elementCapstones,
+} from '../../game/systems/elements';
 import { useGameStore } from '../../state/store';
 import { SectionHeader } from '../components/Panel';
 import { mono, palette, radius, spacing, type } from '../theme';
@@ -41,8 +46,11 @@ export function ElementsScreen() {
       <Text style={styles.blurb}>
         Points come from Ascends (+{BAL.elements.pointsPerAscend}), completed trials (+
         {BAL.elements.pointsPerChallenge}) and time — the next one lands in{' '}
-        {formatTime(toNext)}. Tap an element to invest. Reach {BAL.elements.capstoneAt} points in
-        one element for a ×{BAL.elements.capstoneMult.toString()} capstone on everything.
+        {formatTime(toNext)}. Tap an element to invest. Each of{' '}
+        {BAL.elements.capstones.join(' / ')} points in ONE element is another ×
+        {BAL.elements.capstoneMult.toString()} on everything. Points past{' '}
+        {BAL.softcap.element.t} in an element count for less, so a second affinity is usually
+        worth more than a deeper first one.
       </Text>
 
       <SectionHeader label="Affinities" accent={palette.prism} />
@@ -50,7 +58,12 @@ export function ElementsScreen() {
       {BAL.elements.defs.map((def) => {
         const alloc = elementAlloc(game, def.id);
         const can = elementAllocatable(game, def.id);
-        const capstone = alloc >= BAL.elements.capstoneAt;
+        const steps = elementCapstones(game, def.id);
+        const capstone = steps > 0;
+        // Softcapped points are the one number here that is not what it looks
+        // like, so say so on the row rather than in a wiki nobody will read.
+        const effective = effectiveAlloc(game, def.id);
+        const damped = alloc > 0 && effective < alloc - 0.05;
         return (
           <Pressable
             key={def.id}
@@ -62,11 +75,12 @@ export function ElementsScreen() {
             <View style={styles.body}>
               <Text style={styles.name}>
                 {def.name}
-                {capstone ? '  · capstone active' : ''}
+                {capstone ? `  · capstone ×${steps}` : ''}
               </Text>
               <Text style={styles.desc}>
                 {def.desc}
                 {def.locked ? ' · opens with Minerals' : ''}
+                {damped ? ` · counts as ${effective.toFixed(1)}` : ''}
               </Text>
             </View>
             <Text style={[styles.alloc, alloc > 0 && { color: ELEMENT_COLORS[def.id] }]}>

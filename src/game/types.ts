@@ -43,6 +43,8 @@ export interface GameState {
   spark: Dec;
   bestSparkRun: Dec;
   totalSpark: Dec;
+  /** Seconds since the last Layer-0 reset — the current run's age. */
+  runSeconds: number;
   dims: DimensionTier[]; // length 8
   sparkUpgrades: Record<string, number>;
   dimBoosts: number;
@@ -59,6 +61,8 @@ export interface GameState {
   shardsEver: Dec;
   collapses: number;
   shardUpgrades: Record<string, number>;
+  /** Best single Collapse gain THIS cycle. Resets with shardsEver. */
+  bestCollapseGain: Dec;
 
   // P2 — Ascend
   prism: Dec;
@@ -78,6 +82,8 @@ export interface GameState {
   // Challenges: id -> tiers completed
   challenges: Record<string, number>;
   activeChallenge: string | null;
+  /** Seconds spent in the current Trial run — the abandon-if-hopeless clock. */
+  challengeElapsed: number;
 
   // P3 — Converge
   aeon: Dec;
@@ -85,11 +91,15 @@ export interface GameState {
   aeonEver: Dec;
   converges: number;
   aeonTree: Record<string, boolean>;
+  aeonGrid: Record<string, number>; // repeatable Aeon upgrades
 
   // Minerals & Research
   ore: Dec;
+  /** Ore earned this Unify cycle. Drives the Ore global multiplier (§8.3). */
+  oreEver: Dec;
   miners: Record<string, number>; // minerId -> bought
   research: Record<string, boolean>; // survives Converge; resets at Unify
+  researchGrid: Record<string, number>; // repeatable Ore upgrades
 
   // Time Flux
   flux: Dec;
@@ -108,19 +118,28 @@ export interface GameState {
   singularityEver: Dec;
   unifies: number;
   metaShop: Record<string, boolean>;
+  metaGrid: Record<string, number>; // repeatable Singularity upgrades
 
   // Achievements: id -> earned. Never reset by anything.
   achievements: Record<string, boolean>;
   /** Transient toast queue for newly earned achievements — not saved. */
   pendingAchievements: string[];
 
-  // Star Chart: nodeId -> active
-  starChart: Record<string, boolean>;
+  // Star Chart: nodeId -> RANK (0/missing = not bought). Ranked since the
+  // Phase 12 rebalance — see BAL.starChart for why a switch was not enough.
+  starChart: Record<string, number>;
 
   // Automation: autobuyer id -> enabled. Missing id = ON (default-on).
   automation: Record<string, boolean>;
   /** Seconds since the last autobuyer pass. Transient — not saved. */
   autobuyTimer: number;
+
+  /**
+   * Speedrun splits: milestone id -> `timePlayed` when it was first reached.
+   * Never reset by any prestige layer — a route is only comparable against
+   * another route if the clock survives the resets it is measuring.
+   */
+  milestones: Record<string, number>;
 
   options: GameOptions;
 }

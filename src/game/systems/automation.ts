@@ -7,17 +7,30 @@
  * every `autobuyInterval(state)` seconds (Swift Servos halves it per level),
  * buying from the highest automated tier down so upper tiers are not starved
  * by Tier 1 draining the Spark first.
+ *
+ * The PRESTIGE TREES are deliberately never automated — not the Star Chart,
+ * the Prism grid, the Aeon grid, Research or the Meta Shop. Those are the
+ * choices the game is actually made of; a pass that spent them for you would
+ * leave the player watching. What IS automated is the repetitive part: the
+ * orbiter chain, the two cheap upgrade branches, and the resets themselves.
  */
 import { GameState } from '../types';
 import { buyDim, canDimBoost, doDimBoost } from './dimensions';
+import { buyResearchGrid } from './minerals';
 import { buyMoteUpgrade } from './motes';
 import {
+  buyAeonGrid,
+  buyMetaGrid,
+  buyPrismUpgrade,
+  buyShardUpgrade,
   doAscend,
   doCollapse,
   doConverge,
+  doUnify,
   worthAscending,
   worthCollapsing,
   worthConverging,
+  worthUnifying,
 } from './prestige';
 import { autobuyInterval } from './shardperks';
 import { starAutobuyTier } from './starchart';
@@ -39,6 +52,7 @@ export const AUTOMATION_IDS = [
   'autoCollapse',
   'autoAscend',
   'autoConverge',
+  'autoUnify',
 ] as const;
 export type AutomationId = (typeof AUTOMATION_IDS)[number];
 
@@ -58,6 +72,7 @@ export function autobuyerAvailable(state: GameState, id: AutomationId): boolean 
   // Auto-prestige of the deeper layers comes from the Meta Shop (P4).
   if (id === 'autoAscend') return state.metaShop['autoAscend'] === true;
   if (id === 'autoConverge') return state.metaShop['autoConverge'] === true;
+  if (id === 'autoUnify') return state.metaShop['autoUnify'] === true;
   if (state.ascends > 0) return true;
   if (id === 'dim4') return starAutobuyTier(state, 4);
   if (id === 'dim5' || id === 'dim6' || id === 'dim7' || id === 'dim8' || id === 'dimBoost')
@@ -87,7 +102,37 @@ export function tickAutomation(state: GameState, dt: number): void {
 }
 
 function runAutobuyPass(state: GameState): void {
-  // Highest automated tier first.
+  /*
+   * UPGRADES BEFORE ORBITERS. The order is the whole correctness of this pass.
+   *
+   * The orbiter autobuyers buy MAX, which by definition spends every Spark you
+   * have. Run them first — as this did — and the Spark-upgrade autobuyer below
+   * finds an empty wallet on every single pass, forever: the toggle is on, the
+   * player believes their upgrades are being bought, and they are not. It is a
+   * silent, permanent stall of the branch that holds the game's compounding
+   * multipliers.
+   *
+   * Upgrades also deserve to go first on the merits. They are permanent within
+   * a run (and the Mote branch survives Collapse with Mote Echo), while
+   * orbiters are wiped by the next Dimension Boost — and their geometric costs
+   * make them self-limiting, so they cannot starve the orbiters in turn.
+   */
+  if (autobuyerAvailable(state, 'sparkUpgrades') && autobuyerEnabled(state, 'sparkUpgrades')) {
+    for (const def of BAL.sparkUpgrades) {
+      // Bounded loop: buy at most a handful of levels per pass so a pass
+      // stays cheap even with absurd wealth.
+      for (let i = 0; i < 10 && buySparkUpgrade(state, def.id); i++);
+    }
+  }
+
+  if (autobuyerAvailable(state, 'moteUpgrades') && autobuyerEnabled(state, 'moteUpgrades')) {
+    for (const def of BAL.motes.upgrades) {
+      for (let i = 0; i < 10 && buyMoteUpgrade(state, def.id); i++);
+    }
+  }
+
+  // Highest automated tier first, so upper tiers are not starved by Tier 1
+  // draining the Spark ahead of them.
   for (const [id, tier] of [
     ['dim8', 8],
     ['dim7', 7],
@@ -111,12 +156,20 @@ function runAutobuyPass(state: GameState): void {
     doDimBoost(state);
   }
 
-  // Auto-prestige, deepest layer first so a shallow reset never wastes a
-  // deep one queued in the same pass. All three share the sensible-player
-  // rule from prestige.ts (worth*), which is also what the balance harness
-  // plays. Never during a challenge run — it would wipe progress toward the
-  // goal.
+  // Auto-prestige LAST, and deepest layer first so a shallow reset never
+  // wastes a deep one queued in the same pass. All four share the
+  // sensible-player rule from prestige.ts (worth*), which is also what the
+  // balance harness plays. Never during a challenge run — it would wipe
+  // progress toward the goal.
   if (state.activeChallenge === null) {
+    if (
+      autobuyerAvailable(state, 'autoUnify') &&
+      autobuyerEnabled(state, 'autoUnify') &&
+      worthUnifying(state)
+    ) {
+      doUnify(state);
+    }
+
     if (
       autobuyerAvailable(state, 'autoConverge') &&
       autobuyerEnabled(state, 'autoConverge') &&
@@ -142,17 +195,5 @@ function runAutobuyPass(state: GameState): void {
     }
   }
 
-  if (autobuyerAvailable(state, 'sparkUpgrades') && autobuyerEnabled(state, 'sparkUpgrades')) {
-    for (const def of BAL.sparkUpgrades) {
-      // Bounded loop: buy at most a handful of levels per pass so a pass
-      // stays cheap even with absurd wealth.
-      for (let i = 0; i < 10 && buySparkUpgrade(state, def.id); i++);
-    }
-  }
-
-  if (autobuyerAvailable(state, 'moteUpgrades') && autobuyerEnabled(state, 'moteUpgrades')) {
-    for (const def of BAL.motes.upgrades) {
-      for (let i = 0; i < 10 && buyMoteUpgrade(state, def.id); i++);
-    }
-  }
 }
+

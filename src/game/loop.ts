@@ -13,12 +13,13 @@ import { BAL } from './balance';
 import { clean } from './numbers';
 import { checkAchievements } from './systems/achievements';
 import { tickAutomation } from './systems/automation';
-import { checkChallengeCompletion } from './systems/challenges';
+import { checkChallengeCompletion, tickChallenge } from './systems/challenges';
 import { tickDimensions } from './systems/dimensions';
 import { tickElements } from './systems/elements';
 import { tickMinerals } from './systems/minerals';
+import { recordMilestones } from './systems/milestones';
 import { tickMotes } from './systems/motes';
-import { tickTimers, warpFactor } from './systems/timeflux';
+import { tickOnlineFlux, tickTimers, warpFactor } from './systems/timeflux';
 import { GameState } from './types';
 
 export const TICK = 1 / BAL.tickRate;
@@ -40,10 +41,14 @@ export function tick(state: GameState, dt: number): void {
   // 2. Autobuyers (P1+): rule-based purchases after production.
   tickAutomation(state, dt);
 
-  // 3. Unlock/progress checks: challenge goals, element trickle, achievements.
+  // 3. Unlock/progress checks: challenge goals, element trickle, achievements,
+  //    the Flux trickle, and the speedrun splits.
+  tickChallenge(state, simDt);
   checkChallengeCompletion(state);
   tickElements(state, simDt);
+  tickOnlineFlux(state, simDt);
   checkAchievements(state);
+  recordMilestones(state);
 
   // 4. Sanitize the hot accumulators every tick so a bad multiplier can never
   //    poison the save (spec §4).
@@ -53,6 +58,7 @@ export function tick(state: GameState, dt: number): void {
   state.ore = clean(state.ore);
   state.flux = clean(state.flux);
   state.timePlayed += dt;
+  state.runSeconds += simDt;
 }
 
 export interface LoopHandle {

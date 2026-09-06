@@ -22,23 +22,42 @@ describe('collapse gain & gating', () => {
     expect(doCollapse(s)).toBe(false);
   });
 
+  /**
+   * floor(shardsPerDecade · log10(best / coef)). Read from BAL rather than
+   * hardcoded, because these constants are the main pacing lever and get
+   * retuned; what must never change is the SHAPE — explosive Spark must not
+   * mean explosive Shards, which is the whole reason the gain is a log.
+   */
   it('gain is logarithmic: a fixed number of Spark decades per Shard', () => {
     const s = defaultState(0);
-    // floor(perDecade · log10(best / 1e5)); perDecade = 0.7
-    s.bestSparkRun = D(1e7); // 2 decades → 1
-    expect(collapseGain(s).toNumber()).toBe(1);
-    s.bestSparkRun = D('1e15'); // 10 decades → 7
-    expect(collapseGain(s).toNumber()).toBe(7);
-    s.bestSparkRun = D('1e105'); // 100 decades → 70
-    expect(collapseGain(s).toNumber()).toBe(70);
-    // Explosive Spark must NOT mean explosive Shards — that is the whole point.
-    s.bestSparkRun = D('1e1005');
-    expect(collapseGain(s).toNumber()).toBe(700);
+    const decadesPer = 1 / BAL.collapse.perDecade;
+    const at = (decadesAboveCoef: number) => {
+      s.bestSparkRun = BAL.collapse.coef.mul(D(10).pow(decadesAboveCoef));
+      return collapseGain(s).toNumber();
+    };
+
+    expect(at(decadesPer)).toBe(1);
+    expect(at(decadesPer * 10)).toBe(10);
+    // A thousand extra decades of Spark buys a thousand times fewer Shards
+    // than a linear gain would: the ladder stays a ladder.
+    expect(at(1000)).toBe(Math.floor(1000 * BAL.collapse.perDecade));
+  });
+
+  /**
+   * Resolve (Prism grid) buys the Shard RATE, not more production — the
+   * sideways interlock that stops P1 going obsolete once P2 exists.
+   */
+  it('the Resolve prism upgrade raises shards per decade', () => {
+    const s = defaultState(0);
+    s.bestSparkRun = BAL.collapse.coef.mul(D('1e100'));
+    const plain = collapseGain(s).toNumber();
+    s.prismGrid = { resolve: 4 };
+    expect(collapseGain(s).toNumber()).toBeGreaterThan(plain);
   });
 
   it('stays unlocked forever after the first collapse', () => {
     const s = defaultState(0);
-    s.bestSparkRun = D(1e7);
+    s.bestSparkRun = BAL.collapse.unlockSpark.mul(1e3);
     doCollapse(s);
     expect(s.bestSparkRun.lt(BAL.collapse.unlockSpark)).toBe(true);
     expect(collapseUnlocked(s)).toBe(true);
@@ -48,16 +67,16 @@ describe('collapse gain & gating', () => {
 describe('collapse reset semantics (spec §19: exactly the specified fields)', () => {
   function playedState() {
     const s = defaultState(0);
-    s.spark = D(5e7);
-    s.bestSparkRun = D(5e7);
-    s.totalSpark = D(9e7);
+    s.spark = BAL.collapse.unlockSpark.mul(100);
+    s.bestSparkRun = s.spark;
+    s.totalSpark = s.spark.mul(2);
     s.dims[0] = { bought: 30, amount: D(1000), unlocked: true };
     s.sparkUpgrades = { fluxLattice: 5 };
     s.dimBoosts = 2;
     s.motes = D(100);
     s.motesEver = D(200);
     s.moteUpgrades = { focus: 3 };
-    s.starChart = { ignite: true };
+    s.starChart = { ignite: 1 };
     s.automation = { dim1: false };
     s.totalTaps = 50;
     return s;
@@ -79,9 +98,9 @@ describe('collapse reset semantics (spec §19: exactly the specified fields)', (
 
     // kept
     expect(s.shards.toNumber()).toBeGreaterThan(0);
-    expect(s.totalSpark.eq(D(9e7))).toBe(true);
+    expect(s.totalSpark.eq(BAL.collapse.unlockSpark.mul(200))).toBe(true);
     expect(s.motesEver.eq(D(200))).toBe(true);
-    expect(s.starChart.ignite).toBe(true);
+    expect(s.starChart.ignite).toBe(1);
     expect(s.automation.dim1).toBe(false);
     expect(s.totalTaps).toBe(50);
     expect(s.collapses).toBe(1);

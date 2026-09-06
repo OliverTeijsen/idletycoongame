@@ -33,7 +33,7 @@ describe('roundtrip', () => {
     s.shardsEver = D(120);
     s.collapses = 3;
     s.shardUpgrades = { swiftServos: 2 };
-    s.starChart = { ignite: true, kindling: true };
+    s.starChart = { ignite: 1, kindling: 1 };
     s.automation = { dim1: false };
 
     const back = deserializeState(serializeState(s), 2000)!;
@@ -42,7 +42,7 @@ describe('roundtrip', () => {
     expect(back.shards.eq(D(77))).toBe(true);
     expect(back.collapses).toBe(3);
     expect(back.shardUpgrades).toEqual({ swiftServos: 2 });
-    expect(back.starChart).toEqual({ ignite: true, kindling: true });
+    expect(back.starChart).toEqual({ ignite: 1, kindling: 1 });
     expect(back.automation).toEqual({ dim1: false });
     expect(back.dims[0].bought).toBe(25);
     expect(back.dims[0].amount.eq(D('1e6'))).toBe(true);
@@ -55,6 +55,56 @@ describe('roundtrip', () => {
     // tier unlocks are recomputed from dimBoosts, not trusted from the save
     expect(back.dims[BAL.startingTiers + 1].unlocked).toBe(true);
     expect(back.dims[BAL.startingTiers + 2].unlocked).toBe(false);
+  });
+});
+
+describe('migrations', () => {
+  /**
+   * v7 → v8: the Star Chart became RANKED, so `{ignite: true}` has to come
+   * back as `{ignite: 1}`.
+   *
+   * This is the first non-additive change the save format has ever had, and it
+   * is the whole reason the `migrations` table exists: without the entry, a v7
+   * save loads with an EMPTY chart, because the rank sanitizer rejects
+   * booleans. Every other field this version added default-fills on its own.
+   */
+  it('a v7 save keeps its Star Chart, as rank 1 per owned node', () => {
+    const doc = JSON.parse(serializeState(defaultState(0)));
+    doc.version = 7;
+    doc.starChart = { ignite: true, kindling: true, notANode: true };
+    // Fields v8 added are simply absent from a v7 document.
+    delete doc.oreEver;
+    delete doc.aeonGrid;
+    delete doc.researchGrid;
+    delete doc.metaGrid;
+    delete doc.milestones;
+    delete doc.runSeconds;
+    delete doc.bestCollapseGain;
+    delete doc.challengeElapsed;
+
+    const back = deserializeState(JSON.stringify(doc), 0)!;
+    expect(back).not.toBeNull();
+    expect(back.version).toBe(CURRENT_VERSION);
+    expect(back.starChart).toEqual({ ignite: 1, kindling: 1 });
+    // The additive fields fall back to a fresh state rather than undefined.
+    expect(back.oreEver.eq(ZERO)).toBe(true);
+    expect(back.aeonGrid).toEqual({});
+    expect(back.researchGrid).toEqual({});
+    expect(back.metaGrid).toEqual({});
+    expect(back.milestones).toEqual({});
+    expect(back.runSeconds).toBe(0);
+    expect(back.bestCollapseGain.eq(ZERO)).toBe(true);
+  });
+
+  /** A v7 save with Ore keeps it — Ore now survives Converge, so it matters. */
+  it('a v7 save seeds oreEver from the Ore it was carrying', () => {
+    const doc = JSON.parse(serializeState(defaultState(0)));
+    doc.version = 7;
+    doc.ore = '5000';
+    delete doc.oreEver;
+    const back = deserializeState(JSON.stringify(doc), 0)!;
+    expect(back.ore.toNumber()).toBe(5000);
+    expect(back.oreEver.toNumber()).toBe(5000);
   });
 });
 
@@ -81,7 +131,7 @@ describe('untrusted input', () => {
     doc.totalTaps = 'lots';
     doc.dims[0] = { bought: -3, amount: '-1e10' };
     doc.sparkUpgrades = { ignition: 9999, hacked: 5 };
-    doc.starChart = { ignite: 'yes', fakeNode: true, kindling: true };
+    doc.starChart = { ignite: 'yes', fakeNode: 3, kindling: 2 };
     doc.automation = { dim1: 'off', hacked: true };
     doc.shardUpgrades = { swiftServos: 9999 };
     doc.options = { notation: 'roman', reducedMotion: 'yes', confirmResets: null };
@@ -97,7 +147,7 @@ describe('untrusted input', () => {
     expect(back.sparkUpgrades.ignition).toBe(ignitionDef.maxLevel);
     expect(back.sparkUpgrades.hacked).toBeUndefined();
     // star chart: non-true and unknown entries dropped, valid ones kept
-    expect(back.starChart).toEqual({ kindling: true });
+    expect(back.starChart).toEqual({ kindling: 2 });
     // automation: non-boolean and unknown ids dropped
     expect(back.automation).toEqual({});
     // shard upgrade clamped to its max

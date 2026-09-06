@@ -28,6 +28,28 @@ export function upgradeMult(def: RepeatableUpgradeDef, level: number): Decimal {
   return cleanMul(def.effectPerLevel.pow(level));
 }
 
+/**
+ * `effectPerLevel ^ level` for one entry of a repeatable GRID (the Prism grid,
+ * the Aeon grid, repeatable Research, the Meta grid, the Shard tree).
+ *
+ * The magnitude comes from the def, never from a literal at the call site.
+ * Written the other way — `D(2).pow(level)` sitting beside a balance file
+ * whose description string says "×2" — a retune changes the label and not the
+ * game, which is the exact drift balance.ts's single-source-of-truth header
+ * exists to prevent. What an effect APPLIES to stays per-system; how big it
+ * is, lives in BAL.
+ */
+export function gridMult(
+  defs: readonly { id: string; effectPerLevel?: Decimal }[],
+  grid: Record<string, number>,
+  id: string,
+): Decimal {
+  const level = grid[id] ?? 0;
+  if (level <= 0) return ONE;
+  const def = defs.find((d) => d.id === id);
+  return def?.effectPerLevel ? cleanMul(def.effectPerLevel.pow(level)) : ONE;
+}
+
 const sparkDefs = new Map(BAL.sparkUpgrades.map((u) => [u.id, u]));
 
 export function sparkUpgradeDef(id: string): RepeatableUpgradeDef | undefined {

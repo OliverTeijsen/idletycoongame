@@ -1,7 +1,7 @@
 import { BAL } from '../balance';
 import { D, ONE, ZERO } from '../numbers';
 import { defaultState } from '../state';
-import { tickDimensions } from '../systems/dimensions';
+import { sparkRate, tapGain, tickDimensions } from '../systems/dimensions';
 import { sparkMult, tierMult } from '../systems/multipliers';
 import { buySparkUpgrade, tapPower, upgradeCost, upgradeMult } from '../systems/upgrades';
 
@@ -11,10 +11,33 @@ describe('tap power', () => {
     expect(tapPower(s).eq(BAL.tapBase)).toBe(true);
   });
 
-  it('charge coil doubles per level', () => {
+  it('charge coil multiplies tap power per level', () => {
     const s = defaultState(0);
+    const def = BAL.sparkUpgrades.find((u) => u.id === 'chargeCoil')!;
     s.sparkUpgrades = { chargeCoil: 3 };
-    expect(tapPower(s).eq(BAL.tapBase.mul(8))).toBe(true);
+    expect(tapPower(s).eq(BAL.tapBase.mul(def.effectPerLevel.pow(3)))).toBe(true);
+  });
+
+  /**
+   * The other half of a tap: a slice of your CURRENT production, whichever is
+   * larger. It is what keeps tapping alive after the flat power has been left
+   * behind, and what gives the opening seconds of every reset something to do
+   * (BAL.tapProductionSeconds).
+   */
+  it('a tap is worth a slice of production once that beats the flat power', () => {
+    const s = defaultState(0);
+    s.dims[0].amount = D(1e6);
+    const rate = sparkRate(s);
+    expect(rate.mul(BAL.tapProductionSeconds).gt(tapPower(s))).toBe(true);
+    expect(tapGain(s).sub(rate.mul(BAL.tapProductionSeconds)).abs().div(rate).lt(D(1e-9))).toBe(
+      true,
+    );
+  });
+
+  it('a tap never pays less than its flat power', () => {
+    const s = defaultState(0);
+    // No orbiters: production is zero, so the flat power is what a tap gives.
+    expect(tapGain(s).eq(tapPower(s))).toBe(true);
   });
 });
 
@@ -47,11 +70,24 @@ describe('spark upgrades', () => {
 
   it('ignition boosts only tier 1; cascade only tiers 2+', () => {
     const s = defaultState(0);
+    const ignition = BAL.sparkUpgrades.find((u) => u.id === 'ignition')!;
+    const cascade = BAL.sparkUpgrades.find((u) => u.id === 'cascade')!;
     s.sparkUpgrades = { ignition: 1, cascade: 1 };
-    const t1 = tierMult(s, 1);
-    const t2 = tierMult(s, 2);
-    expect(t1.eq(D(2))).toBe(true);
-    expect(t2.eq(D(1.1))).toBe(true);
+    expect(tierMult(s, 1).eq(ignition.effectPerLevel)).toBe(true);
+    expect(tierMult(s, 2).eq(cascade.effectPerLevel)).toBe(true);
+  });
+
+  /**
+   * Chain Reaction is the only multiplier that grows with a tier's DEPTH, so
+   * it is the only reason to push Dimension Boosts for anything beyond the
+   * flat times-two. Tier 8 must get eight times the exponent Tier 1 does.
+   */
+  it('chain reaction compounds with tier depth', () => {
+    const s = defaultState(0);
+    const def = BAL.sparkUpgrades.find((u) => u.id === 'chainReaction')!;
+    s.sparkUpgrades = { chainReaction: 2 };
+    expect(tierMult(s, 1).sub(def.effectPerLevel.pow(2)).abs().lt(D(1e-9))).toBe(true);
+    expect(tierMult(s, 8).sub(def.effectPerLevel.pow(16)).abs().lt(D(1e-6))).toBe(true);
   });
 
   it('upgrade effects show up in actual production', () => {
@@ -62,8 +98,11 @@ describe('spark upgrades', () => {
     upgraded.sparkUpgrades = { fluxLattice: 1, ignition: 1 };
     tickDimensions(plain, 1);
     tickDimensions(upgraded, 1);
-    // ×1.25 (lattice) ×2 (ignition) = ×2.5
-    expect(upgraded.spark.div(plain.spark).sub(D(2.5)).abs().lt(D(1e-9))).toBe(true);
+    // Flux Lattice × Ignition, read from the defs so a retune cannot rot this.
+    const lattice = BAL.sparkUpgrades.find((u) => u.id === 'fluxLattice')!;
+    const ignition = BAL.sparkUpgrades.find((u) => u.id === 'ignition')!;
+    const expected = lattice.effectPerLevel.mul(ignition.effectPerLevel);
+    expect(upgraded.spark.div(plain.spark).sub(expected).abs().lt(D(1e-9))).toBe(true);
   });
 
   it('upgradeMult of level 0 is 1', () => {

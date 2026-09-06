@@ -14,6 +14,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BAL } from '../../game/balance';
 import { formatWhole, format } from '../../game/numbers';
 import {
+  aeonGridCost,
+  aeonGridLevel,
   aeonNodeOwned,
   ascendGain,
   ascendUnlocked,
@@ -23,12 +25,18 @@ import {
   canUnify,
   collapseGain,
   convergeGain,
+  convergeTrialsMet,
   convergeUnlocked,
+  metaGridCost,
+  metaGridLevel,
   metaOwned,
   prismUpgradeCost,
   prismUpgradeLevel,
   shardUpgradeCost,
+  shardsPerDecade,
+  trialTiersCleared,
   unifyGain,
+  unifyGates,
   unifyUnlocked,
 } from '../../game/systems/prestige';
 import { shardUpgradeLevel } from '../../game/systems/shardperks';
@@ -45,14 +53,18 @@ export function PrestigeScreen() {
   const buyPrismUpgrade = useGameStore((s) => s.buyPrismUpgrade);
   const converge = useGameStore((s) => s.converge);
   const buyAeonNode = useGameStore((s) => s.buyAeonNode);
+  const buyAeonGrid = useGameStore((s) => s.buyAeonGrid);
   const unify = useGameStore((s) => s.unify);
   const buyMetaUpgrade = useGameStore((s) => s.buyMetaUpgrade);
+  const buyMetaGrid = useGameStore((s) => s.buyMetaGrid);
   const notation = game.options.notation;
 
   const showAscend = ascendUnlocked(game);
   const showConverge = convergeUnlocked(game);
   const showUnify = unifyUnlocked(game);
-  const needsSeed = !game.research['singularitySeed'] && game.bestAeon.gte(BAL.unify.unlockAeon);
+  const gates = unifyGates(game);
+  const nextGate = gates.find((g) => !g.met);
+  const trialsDone = trialTiersCleared(game);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
@@ -63,7 +75,7 @@ export function PrestigeScreen() {
         ready={canCollapse(game)}
         confirmNeeded={game.options.confirmResets}
         measure={{ label: 'Best Spark this run', value: `${LAYERS.spark.glyph} ${format(game.bestSparkRun, { notation })}` }}
-        note={`One Shard per ${(1 / BAL.collapse.perDecade).toFixed(1)} decades of Spark.`}
+        note={`One Shard per ${(1 / shardsPerDecade(game)).toFixed(2)} decades of Spark. Resolve, in the Prism grid, buys that rate down.`}
         resets="Spark, orbiters, Spark upgrades, Motes and upgrades, Dimension Boosts"
         keeps="Shards, Star Chart, Shard upgrades, automation"
         action="Collapse the core"
@@ -168,11 +180,15 @@ export function PrestigeScreen() {
                 label: 'Prism earned this cycle',
                 value: `${LAYERS.prism.glyph} ${formatWhole(game.prismEver, notation)}`,
               }}
-              note={`Opens at ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)}. Every Aeon multiplies all tiers by ${BAL.converge.tierMultPer.toString()}.`}
+              note={`Needs ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} AND ${BAL.gates.convergeTrialTiers} Trial tiers (${trialsDone} cleared). Every Aeon multiplies all tiers by ${BAL.converge.tierMultPer.toString()}.`}
               resets="Everything Ascend does, plus Prism and grid, Element allocation, Ore and Miners"
               keeps="Aeon and tree, Research, element points, trial rewards"
               action="Converge the rings"
-              locked={`Reach ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism first`}
+              locked={
+                convergeTrialsMet(game)
+                  ? `Reach ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism first`
+                  : `Clear ${BAL.gates.convergeTrialTiers} Trial tiers first (${trialsDone} of ${BAL.gates.convergeTrialTiers})`
+              }
               onConfirm={converge}
             />
 
@@ -199,6 +215,21 @@ export function PrestigeScreen() {
                     onBuy={() => buyAeonNode(node.id)}
                   />
                 ))}
+                {BAL.aeonUpgrades.map((u) => {
+                  const level = aeonGridLevel(game, u.id);
+                  const cost = aeonGridCost(game, u.id);
+                  return (
+                    <Row
+                      key={u.id}
+                      color={palette.aeon}
+                      title={u.name}
+                      subtext={`${u.desc} · level ${level}`}
+                      costText={`${LAYERS.aeon.glyph} ${formatWhole(cost, notation)}`}
+                      affordable={game.aeon.gte(cost)}
+                      onBuy={() => buyAeonGrid(u.id)}
+                    />
+                  );
+                })}
               </>
             )}
 
@@ -218,13 +249,33 @@ export function PrestigeScreen() {
                   resets="Everything. Aeon and tree, Research, Miners, Flux, and every layer below"
                   keeps="Singularity and Meta Shop, element points, trial rewards"
                   action="Unify the gyre"
-                  locked={
-                    needsSeed
-                      ? 'Research the Singularity Seed first'
-                      : `Reach ${LAYERS.aeon.glyph} ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon first`
-                  }
+                  locked={nextGate ? nextGate.label : 'Ready'}
                   onConfirm={unify}
                 />
+
+                {/*
+                  Unify's four gates, drawn as a checklist.
+
+                  They come from four different systems on purpose (see
+                  BAL.gates), which means "why can't I Unify yet" has four
+                  possible answers — and a single `locked` sentence can only
+                  ever tell the player one of them. The list is the feature:
+                  it is the map of what the endgame is asking you to go and do.
+                */}
+                {!canUnify(game) && (
+                  <View style={styles.gateList}>
+                    {gates.map((g) => (
+                      <View key={g.id} style={styles.gateRow}>
+                        <Text style={[styles.gateMark, g.met && styles.gateMarkMet]}>
+                          {g.met ? '✓' : '○'}
+                        </Text>
+                        <Text style={[styles.gateLabel, g.met && styles.gateLabelMet]}>
+                          {g.label}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
 
                 {game.unifies > 0 && (
                   <>
@@ -249,6 +300,21 @@ export function PrestigeScreen() {
                         onBuy={() => buyMetaUpgrade(def.id)}
                       />
                     ))}
+                    {BAL.metaGrid.map((u) => {
+                      const level = metaGridLevel(game, u.id);
+                      const cost = metaGridCost(game, u.id);
+                      return (
+                        <Row
+                          key={u.id}
+                          color={palette.singularity}
+                          title={u.name}
+                          subtext={`${u.desc} · level ${level}`}
+                          costText={`${LAYERS.singularity.glyph} ${formatWhole(cost, notation)}`}
+                          affordable={game.singularity.gte(cost)}
+                          onBuy={() => buyMetaGrid(u.id)}
+                        />
+                      );
+                    })}
                   </>
                 )}
               </>
@@ -257,7 +323,7 @@ export function PrestigeScreen() {
                 <Teaser
                   layer={LAYERS.singularity}
                   name="Unify"
-                  text={`The last layer opens at ${LAYERS.aeon.glyph} ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon, once the Singularity Seed is researched. It resets everything, for a multiplier that never resets again.`}
+                  text={`The last layer wants four things at once: ${LAYERS.aeon.glyph} ${formatWhole(BAL.unify.unlockAeon, notation)} Aeon, the Singularity Seed research, ${BAL.gates.unifyTrialTiers} Trial tiers and Deep Refinement ${BAL.gates.unifyRefineLevels}. It resets everything, for a multiplier that never resets again.`}
                 />
               )
             )}
@@ -266,7 +332,7 @@ export function PrestigeScreen() {
           <Teaser
             layer={LAYERS.aeon}
             name="Converge"
-            text={`The third layer opens at ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism. Minerals, Research and Boost Managers come with it.`}
+            text={`The third layer opens at ${LAYERS.prism.glyph} ${formatWhole(BAL.converge.unlockPrism, notation)} Prism AND ${BAL.gates.convergeTrialTiers} cleared Trial tiers. Minerals, Research and Boost Managers come with it.`}
           />
         ))}
     </ScrollView>
@@ -398,6 +464,19 @@ function Teaser({
 }
 
 const styles = StyleSheet.create({
+  gateList: {
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    gap: 5,
+  },
+  gateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  gateMark: { ...mono, fontSize: 12, color: palette.faint, width: 14 },
+  gateMarkMet: { color: palette.orbiter },
+  gateLabel: { ...type.micro, color: palette.dim, flex: 1 },
+  gateLabelMet: { color: palette.faint, textDecorationLine: 'line-through' },
   scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 },
   balance: { ...type.figure, fontSize: 14 },
 

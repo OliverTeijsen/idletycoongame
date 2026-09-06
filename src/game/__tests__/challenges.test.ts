@@ -117,15 +117,21 @@ describe('rewards persist after the run', () => {
   it('speed, mote, tier and cost-growth rewards apply', () => {
     const s = p2();
     s.challenges = { stillRing: 1, famine: 1, solitary: 1, brittle: 1 };
-    expect(speedMult(s).sub(D(1.5)).abs().lt(D(1e-9))).toBe(true);
-    expect(tierMult(s, 3).sub(D(1.1)).abs().lt(D(1e-9))).toBe(true);
+    expect(speedMult(s).sub(BAL.challenges.stillRingReward).abs().lt(D(1e-9))).toBe(true);
+    expect(tierMult(s, 3).sub(BAL.challenges.solitaryReward).abs().lt(D(1e-9))).toBe(true);
 
     const noReward = p2();
     noReward.dims[0].amount = D(100);
     const withReward = p2();
     withReward.challenges = { famine: 1 };
     withReward.dims[0].amount = D(100);
-    expect(moteRate(withReward).div(moteRate(noReward)).sub(D(3)).abs().lt(D(1e-6))).toBe(true);
+    expect(
+      moteRate(withReward)
+        .div(moteRate(noReward))
+        .sub(BAL.challenges.famineReward)
+        .abs()
+        .lt(D(1e-6)),
+    ).toBe(true);
 
     const g = BAL.dimensions[0].costGrowth;
     expect(costGrowthFor(s, g).lt(g)).toBe(true);

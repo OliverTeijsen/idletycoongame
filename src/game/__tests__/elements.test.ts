@@ -3,6 +3,7 @@ import { D, ONE } from '../numbers';
 import { defaultState } from '../state';
 import {
   allocateElement,
+  effectiveAlloc,
   elementGlobalMult,
   elementMoteMult,
   elementSparkMult,
@@ -58,17 +59,38 @@ describe('effects', () => {
     allocateElement(s, 'aqua');
     allocateElement(s, 'aer');
     allocateElement(s, 'lux');
-    expect(elementSparkMult(s).sub(D(1.1)).abs().lt(D(1e-9))).toBe(true);
-    expect(elementMoteMult(s).sub(D(1.1)).abs().lt(D(1e-9))).toBe(true);
-    expect(elementSpeedMult(s).sub(D(1.1)).abs().lt(D(1e-9))).toBe(true);
-    expect(elementGlobalMult(s).sub(D(1.05)).abs().lt(D(1e-9))).toBe(true);
+    const per = BAL.elements.perPoint;
+    expect(elementSparkMult(s).sub(per.ignis).abs().lt(D(1e-9))).toBe(true);
+    expect(elementMoteMult(s).sub(per.aqua).abs().lt(D(1e-9))).toBe(true);
+    expect(elementSpeedMult(s).sub(per.aer).abs().lt(D(1e-9))).toBe(true);
+    expect(elementGlobalMult(s).sub(per.lux).abs().lt(D(1e-9))).toBe(true);
   });
 
-  it('capstone at 10 points grants the extra global', () => {
+  it('capstones are tiered: each threshold cleared is another multiplier', () => {
     const s = unlocked();
-    s.elements = { points: 0, alloc: { ignis: 10 }, progress: 0 };
-    // no lux allocated, so global = capstone alone
+    const [first, second] = BAL.elements.capstones;
+    s.elements = { points: 0, alloc: { ignis: first }, progress: 0 };
+    // no lux allocated, so global = capstones alone
     expect(elementGlobalMult(s).sub(BAL.elements.capstoneMult).abs().lt(D(1e-9))).toBe(true);
+    s.elements = { points: 0, alloc: { ignis: second }, progress: 0 };
+    expect(elementGlobalMult(s).sub(BAL.elements.capstoneMult.pow(2)).abs().lt(D(1e-9))).toBe(
+      true,
+    );
+  });
+
+  /**
+   * Points arrive forever at a fixed rate, so an uncapped per-point multiplier
+   * would be an exponential in wall-clock time. The cap is on the ALLOCATION,
+   * which is also what makes a second affinity worth more than a deeper first.
+   */
+  it('allocation past the softcap knee counts for less', () => {
+    const s = unlocked();
+    const t = BAL.softcap.element.t;
+    s.elements = { points: 0, alloc: { ignis: t }, progress: 0 };
+    expect(effectiveAlloc(s, 'ignis')).toBeCloseTo(t, 6);
+    s.elements = { points: 0, alloc: { ignis: t * 16 }, progress: 0 };
+    expect(effectiveAlloc(s, 'ignis')).toBeLessThan(t * 16);
+    expect(effectiveAlloc(s, 'ignis')).toBeGreaterThan(t);
   });
 });
 
